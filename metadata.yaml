@@ -1,0 +1,12 @@
+name: k8s
+summary: The Kubernetes layer charm.
+maintainers:
+    - Matthew Bruzek <matthew.bruzek@ubuntu.com>
+description: |
+  Delivers the Kubernetes code as docker containers.
+tags:
+  - infrastructure
+subordinate: false
+payloads:
+  slackbot:
+    type: docker
