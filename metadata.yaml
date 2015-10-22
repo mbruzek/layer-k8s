@@ -7,6 +7,11 @@ description: |
 tags:
   - infrastructure
 subordinate: false
+# requires:
+#   etcd:
+#     interface: etcd
 payloads:
-  slackbot:
+  kubernetes:
+    type: docker
+  monitoring:
     type: docker

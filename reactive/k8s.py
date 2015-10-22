@@ -68,8 +68,10 @@ def proxy():
 def download_kubectl():
     '''Download the kubectl binary to test and interact with the cluster.'''
     status_set('maintenance', 'Downloading the kubectl binary')
-    cmd = 'wget -nv https://storage.googleapis.com/kubernetes-release/' \
-          'release/v1.0.1/bin/linux/amd64/kubectl'
+    cmd = 'wget -nv -O /usr/local/bin/kubectl https://storage.googleapis.com/' \
+          'kubernetes-release/release/v1.0.1/bin/linux/amd64/kubectl'
+    check_call(split(cmd))
+    cmd = 'chmod +x /usr/local/bin/kubectl'
     check_call(split(cmd))
     set_state('kubectl.downloaded')
     status_set('maintenance', 'Kubernetes installed')
