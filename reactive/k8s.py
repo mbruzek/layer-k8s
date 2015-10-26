@@ -13,12 +13,12 @@ from charmhelpers.core.templating import render
 from os import getenv
 from contextlib import contextmanager
 
-# @when('docker.available')
-# @when_not('etcd.available')
-# def relation_message():
-#     '''Take over messaging to let the user know they are pending a relationship
-#     to the ETCD cluster before going any further. '''
-#     status_set('waiting', 'Relate me to ETCD')
+@when('docker.available')
+@when_not('etcd.available')
+def relation_message():
+    '''Take over messaging to let the user know they are pending a relationship
+    to the ETCD cluster before going any further. '''
+    status_set('waiting', 'Relate me to ETCD')
 
 
 @when('etcd.available')
