@@ -35,7 +35,6 @@ def master(etcd):
         check_call(split(cmd))
     set_state('kubernetes-master.available')
     set_state('proxy.available')
-    set_state('proxy.available')
     # TODO: verify with juju action-do kubernetes/0 get-credentials
     status_set('active', 'Kubernetes is started. verify with: kubectl get pods')
 
