@@ -1,3 +1,5 @@
+import os
+
 from shlex import split
 from subprocess import check_call
 
@@ -6,61 +8,35 @@ from charms.reactive import when
 from charms.reactive import when_not
 
 from charmhelpers.core.hookenv import status_set
+from charmhelpers.core.templating import render
 
+from os import getenv
+from contextlib import contextmanager
 
 @when('docker.available')
 @when_not('etcd.available')
-def etcd():
-    '''Install and run the etcd container.'''
-    status_set('maintenance', 'Starting the etcd container')
-    cmd = 'docker run -d --net=host --restart=always ' \
-          'gcr.io/google_containers/etcd:2.0.12 ' \
-          '/usr/local/bin/etcd --addr=127.0.0.1:4001 ' \
-          '--bind-addr=0.0.0.0:4001 --data-dir=/var/etcd/data'
-    check_call(split(cmd))
-    set_state('etcd.available')
-    status_set('maintenance', '')
+def relation_message():
+    '''Take over messaging to let the user know they are pending a relationship
+    to the ETCD cluster before going any further. '''
+    status_set('waiting', 'Relate me to ETCD')
 
 
 @when('etcd.available')
 @when_not('kubernetes-master.available')
-def master():
+def master(etcd):
     '''Install and run the hyperkube container that starts kubernetes-master.
     This actually runs the kubelet, which in turn runs a pod that contains the
     other master components.
     '''
+    render_manifest(etcd)
     status_set('maintenance', 'Starting the kubernetes master container')
-    cmd = 'docker run -d --net=host --pid=host --privileged=true ' \
-          '--restart=always ' \
-          '--volume=/:/rootfs:ro ' \
-          '--volume=/sys:/sys:ro ' \
-          '--volume=/dev:/dev ' \
-          '--volume=/var/lib/docker/:/var/lib/docker:rw ' \
-          '--volume=/var/lib/kubelet/:/var/lib/kubelet:rw ' \
-          '--volume=/var/run:/var/run:rw ' \
-          'gcr.io/google_containers/hyperkube:v1.0.6 ' \
-          '/hyperkube kubelet --containerized ' \
-          '--hostname-override="127.0.0.1" --address="0.0.0.0" ' \
-          '--api-servers=http://localhost:8080 ' \
-          '--config=/etc/kubernetes/manifests'
-    check_call(split(cmd))
+    with chdir('dockerfiles/hyperkube'):
+        cmd = "docker-compose up -d"
+        check_call(split(cmd))
     set_state('kubernetes-master.available')
-    status_set('maintenance', '')
-
-
-@when('kubernetes-master.available')
-@when_not('proxy.available')
-def proxy():
-    '''Run the hyperkube container that starts the proxy. Need to have the
-    master started for this to work.
-    '''
-    status_set('maintenance', 'Starting the service proxy container')
-    cmd = 'docker run -d --net=host --privileged=true --restart=always ' \
-          'gcr.io/google_containers/hyperkube:v1.0.6 ' \
-          '/hyperkube proxy --master=http://127.0.0.1:8080 --v=2'
-    check_call(split(cmd))
     set_state('proxy.available')
-    status_set('maintenance', '')
+    # TODO: verify with juju action-do kubernetes/0 get-credentials
+    status_set('active', 'Kubernetes is started. verify with: kubectl get pods')
 
 
 @when('proxy.available')
@@ -75,3 +51,16 @@ def download_kubectl():
     check_call(split(cmd))
     set_state('kubectl.downloaded')
     status_set('maintenance', 'Kubernetes installed')
+
+
+def render_manifest(reldata):
+    data = {'connection_string': reldata.connection_string()}
+    render('master.json', 'files/manifests/master.json', data)
+
+
+@contextmanager
+def chdir(path)
+    old_dir = os.getcwd()
+    os.chdir(path)
+    yield
+    os.chdir(old_dir)

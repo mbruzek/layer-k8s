@@ -7,11 +7,6 @@ description: |
 tags:
   - infrastructure
 subordinate: false
-# requires:
-#   etcd:
-#     interface: etcd
-payloads:
-  kubernetes:
-    type: docker
-  monitoring:
-    type: docker
+requires:
+   etcd:
+     interface: etcd
