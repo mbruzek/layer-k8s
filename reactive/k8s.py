@@ -40,11 +40,6 @@ def master(etcd):
     status_set('active', 'Kubernetes is started. verify with: kubectl get pods')
 
 
-def render_manifest(reldata):
-    data = {'connection_string': reldata.connection_string()}
-    render('master.json', 'files/manifests/master.json', data)
-
-
 @when('proxy.available')
 @when_not('kubectl.downloaded')
 def download_kubectl():
@@ -57,6 +52,12 @@ def download_kubectl():
     check_call(split(cmd))
     set_state('kubectl.downloaded')
     status_set('maintenance', 'Kubernetes installed')
+
+
+def render_manifest(reldata):
+    data = {'connection_string': reldata.connection_string()}
+    render('master.json', 'files/manifests/master.json', data)
+
 
 @contextmanager
 def chdir(path)
