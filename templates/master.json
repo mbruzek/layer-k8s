@@ -1,4 +1,3 @@
-/* The multi-node master.json kubernetes pods definition. */
 {
 "apiVersion": "v1",
 "kind": "Pod",
@@ -8,7 +7,7 @@
   "containers":[
     {
       "name": "controller-manager",
-      "image": "gcr.io/google_containers/hyperkube:v1.0.6",
+      "image": "gcr.io/google_containers/hyperkube:{{version}}",
       "command": [
               "/hyperkube",
               "controller-manager",
@@ -18,12 +17,12 @@
     },
     {
       "name": "apiserver",
-      "image": "gcr.io/google_containers/hyperkube:v1.0.6",
+      "image": "gcr.io/google_containers/hyperkube:{{version}}",
       "command": [
               "/hyperkube",
               "apiserver",
               "--portal-net=10.0.0.1/24",
-              "--address=0.0.0.0",
+              "--address=127.0.0.1",
               "--etcd-servers={{connection_string}}",
               "--cluster-name=kubernetes",
               "--v=2"
@@ -31,7 +30,7 @@
     },
     {
       "name": "scheduler",
-      "image": "gcr.io/google_containers/hyperkube:v1.0.6",
+      "image": "gcr.io/google_containers/hyperkube:{{version}}",
       "command": [
               "/hyperkube",
               "scheduler",

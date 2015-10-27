@@ -49,8 +49,7 @@ def master(etcd):
 def download_kubectl():
     '''Download the kubectl binary to test and interact with the cluster.'''
     status_set('maintenance', 'Downloading the kubectl binary')
-    version = hookenv.config()['version'
-    ]
+    version = hookenv.config()['version']
     cmd = 'wget -nv -O /usr/local/bin/kubectl https://storage.googleapis.com/' \
           'kubernetes-release/release/{0}/bin/linux/amd64/kubectl'
     cmd = cmd.format(version)
