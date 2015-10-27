@@ -76,7 +76,8 @@ def render_files(reldata):
     if not os.path.exists(rendered_manifest_dir):
         os.makedirs(rendered_manifest_dir)
     # Add the manifest directory so the docker-compose file can have.
-    context.update({'manifest_directory': rendered_manifest_dir})
+    context.update({'manifest_directory': rendered_manifest_dir,
+                    'private_address': hookenv.unit_get('private-address')})
 
     # Render the files/kubernetes/docker-compose.yml file that contains the
     # definition for kubelet and proxy.
