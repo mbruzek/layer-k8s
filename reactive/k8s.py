@@ -75,7 +75,7 @@ def download_kubectl():
     cmd = 'chmod +x /usr/local/bin/kubectl'
     check_call(split(cmd))
     set_state('kubectl.downloaded')
-    status_set('maintenance', 'Kubernetes installed')
+    status_set('active', 'Kubernetes installed')
 
 
 def render_files(reldata):
