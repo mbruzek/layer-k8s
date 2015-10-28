@@ -3,6 +3,8 @@ import os
 from shlex import split
 from subprocess import check_call
 
+from charms.reactive import hook
+from charms.reactive import remove_state
 from charms.reactive import set_state
 from charms.reactive import when
 from charms.reactive import when_not
@@ -11,8 +13,23 @@ from charmhelpers.core import hookenv
 from charmhelpers.core.hookenv import status_set
 from charmhelpers.core.templating import render
 
-from os import getenv
 from contextlib import contextmanager
+
+
+@hook('config-changed')
+def config_changed():
+    '''If the configuration values change, remove the available state.'''
+    config = hookenv.config()
+    if any(config.changed(key) for key in config.keys()):
+        hookenv.log('Configuration options have changed.')
+
+        hookenv.log('Removing kubelet service and kubelet.available state.')
+        docker_compose_kill_remove('kubelet')
+        remove_state('kubelet.available')
+
+        hookenv.log('Removing proxy service and proxy.available state.')
+        docker_compose_kill_remove('proxy')
+        remove_state('proxy.available')
 
 
 @when('docker.available')
@@ -24,7 +41,7 @@ def relation_message():
 
 
 @when('etcd.available')
-@when_not('kubernetes-master.available')
+@when_not('kubelet.available')
 def master(etcd):
     '''Install and run the hyperkube container that starts kubernetes-master.
     This actually runs the kubelet, which in turn runs a pod that contains the
@@ -34,11 +51,11 @@ def master(etcd):
     status_set('maintenance', 'Starting the kubernetes master container')
     with chdir('files/kubernetes'):
         # Start the kubelet container that starts the three master services.
-        check_call(split('docker-compose run -d kubelet'))
+        check_call(split('docker-compose up -d kubelet'))
         set_state('kubelet.available')
         # Start the proxy container
         status_set('maintenance', 'Starting the kubernetes proxy container')
-        check_call(split('docker-compose run -d proxy'))
+        check_call(split('docker-compose up -d proxy'))
         set_state('proxy.available')
     # TODO: verify with juju action-do kubernetes/0 get-credentials
     status_set('active', 'Kubernetes started')
@@ -97,3 +114,16 @@ def chdir(path):
     os.chdir(path)
     yield
     os.chdir(old_dir)
+
+
+def docker_compose_kill_remove(service):
+    '''Use docker-compose command to kill and remove the service.'''
+    # The docker-compose.yml file is requried to run docker-compose commands.
+    if os.path.isfile('files/kubernetes/docker-compose.yml'):
+        with chdir('files/kubernetes'):
+            # The docker-compose command to kill a service.
+            kill_command = 'docker-compose kill {0}'.format(service)
+            check_call(split(kill_command))
+            # The docker-compose command to remove a service (forcefully).
+            remove_command = 'docker-compose rm -f {0}'.format(service)
+            check_call(split(remove_command))

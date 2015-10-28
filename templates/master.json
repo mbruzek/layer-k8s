@@ -24,7 +24,7 @@
               "--portal-net=10.0.0.1/24",
               "--address=127.0.0.1",
               "--etcd-servers={{connection_string}}",
-              "--cluster-name=kubernetes",
+              "--cluster-name=-juju-kubernetes",
               "--v=2"
         ]
     },
