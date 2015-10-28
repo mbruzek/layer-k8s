@@ -21,7 +21,7 @@
       "command": [
               "/hyperkube",
               "apiserver",
-              "--portal-net=10.0.0.1/24",
+              "--portal-net={{cidr}}",
               "--address=0.0.0.0",
               "--etcd-servers={{connection_string}}",
               "--cluster-name=kubernetes",
