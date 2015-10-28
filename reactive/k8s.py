@@ -117,8 +117,8 @@ def chdir(path):
 
 
 def docker_compose_kill_remove(service):
-    '''Use docker-compose command to kill and remove the service.'''
-    # The docker-compose.yml file is requried to run docker-compose commands.
+    '''Use docker-compose commands to kill and remove the service.'''
+    # The docker-compose.yml file is required to run docker-compose commands.
     if os.path.isfile('files/kubernetes/docker-compose.yml'):
         with chdir('files/kubernetes'):
             # The docker-compose command to kill a service.
