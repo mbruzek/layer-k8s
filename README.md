@@ -7,9 +7,10 @@ containerized applications.
 
 This charm is an encapsulation of the
 [Running Kubernetes locally via Docker](https://github.com/kubernetes/kubernetes/blob/master/docs/getting-started-guides/docker.md)
-document.  The hyperkube image is currently pulled from a private container
-repository 'gcr.io/google_containers/hyperkube'.  For this charm to work it
-will need access to the repository to `docker pull` the images.
+document.  The hyperkube image (`gcr.io/google_containers/hyperkube`) is
+currently pulled from a [Google owned container repository
+repository](https://cloud.google.com/container-registry/).  For this charm to
+work it will need access to the repository to `docker pull` the images.
 
 The charm is implemented in the reactive pattern and uses the
 `layer:docker` as a base layer.  For more information please read the
