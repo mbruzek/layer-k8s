@@ -3,10 +3,10 @@ options:
     type: string
     default: "v1.0.6"
     description: |
-        The kubernetes release to use in this charm. The binary files are
-        compiled from the source identified by this tag in github. Using the
-        value of "source" will use the master kubernetes branch when compiling
-        the binaries.
+        The version of Kubernetes to use in this charm.  The version is
+        inserted in the configuration files that specify the hyperkube
+        container to use when starting a Kubernetes cluster.  Changing this
+        value will restart the Kubernetes cluster.
   cidr:
     type: string
     default: 10.1.0.0/16
