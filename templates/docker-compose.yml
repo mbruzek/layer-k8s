@@ -21,6 +21,7 @@ kubelet:
   net: host
   pid: host
   privileged: true
+  restart: always
   volumes:
     - /:/rootfs:ro
     - /sys:/sys:ro
@@ -53,5 +54,6 @@ etcd:
 proxy:
   net: host
   privileged: true
+  restart: always
   image: gcr.io/google_containers/hyperkube:{{version}}
   command: /hyperkube proxy --master=http://127.0.0.1:8080 --v=2
