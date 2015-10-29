@@ -77,6 +77,14 @@ def download_kubectl():
     set_state('kubectl.downloaded')
     status_set('active', 'Kubernetes installed')
 
+@when('proxy.available')
+@when_not('cadvisor.available')
+def start_cadvisor():
+    with chdir('files/kubernetes'):
+        check_call(split('docker-compose up -d cadvisor'))
+    set_state('cadvisor.available')
+    status_set('active', 'cadvisor running on port 8088')
+    hookenv.open_port(8088)
 
 def render_files(reldata):
     '''Use jinja templating to render the docker-compose.yml and master.json
