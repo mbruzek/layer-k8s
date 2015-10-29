@@ -57,3 +57,16 @@ proxy:
   restart: always
   image: gcr.io/google_containers/hyperkube:{{version}}
   command: /hyperkube proxy --master=http://127.0.0.1:8080 --v=2
+
+# cAdvisor (Container Advisor) provides container users an understanding of
+# the resource usage and performance characteristics of their running containers.
+cadvisor:
+  image: google/cadvisor:latest
+  volumes:
+    - /:/rootfs:ro
+    - /var/run:/var/run:rw
+    - /sys:/sys:ro
+    - /var/lib/docker:/var/lib/docker:ro
+  ports:
+    - 8088:8080
+  restart: always
