@@ -31,6 +31,11 @@ def config_changed():
         docker_compose_kill_remove('proxy')
         remove_state('proxy.available')
 
+        if config.changed('version'):
+            hookenv.log('Removing kubectl.downloaded state so the new version'
+                        'kubectl will be downloaded again.')
+            remove_state('kubectl.downloaded')
+
 
 @when('docker.available')
 @when_not('etcd.available')
@@ -79,6 +84,27 @@ def download_kubectl():
     check_call(split(cmd))
     set_state('kubectl.downloaded')
     status_set('active', 'Kubernetes installed')
+
+
+@when('kubectl.downloaded')
+@when_not('kubectl.package.created')
+def package_kubectl():
+    '''Package the kubectl binary and configuration to a zip file for users
+    to consume and interact directly with Kubernetes.'''
+    cluster_name = 'kubernetes'
+    public_address = hookenv.unit_public_ip()
+    port = '8080'
+    # Create the kubectl config file
+    cmd = 'kubectl config set-cluster {0} --server={1}:{2}'
+    cmd = cmd.format(cluster_name, public_address, port)
+    # Copy the kubectl config file to /tmp/
+    cmd = 'cp -rv ${HOME}/.kube /tmp/'
+    # Copy the kubectl to /tmp/
+    cmd = 'cp -v /usr/local/bin/kubectl /tmp/'
+    # Zip that file up.
+    with chdir('/tmp'):
+        cmd = 'tar -cvzf kubebundle.tar.gz kubectl .kube'
+
 
 @when('proxy.available')
 @when_not('cadvisor.available')
