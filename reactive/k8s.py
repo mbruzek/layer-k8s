@@ -89,21 +89,27 @@ def download_kubectl():
 @when('kubectl.downloaded')
 @when_not('kubectl.package.created')
 def package_kubectl():
-    '''Package the kubectl binary and configuration to a zip file for users
+    '''Package the kubectl binary and configuration to a tar file for users
     to consume and interact directly with Kubernetes.'''
     cluster_name = 'kubernetes'
     public_address = hookenv.unit_public_ip()
     port = '8080'
-    # Create the kubectl config file
-    cmd = 'kubectl config set-cluster {0} --server={1}:{2}'
-    cmd = cmd.format(cluster_name, public_address, port)
-    # Copy the kubectl config file to /tmp/
-    cmd = 'cp -rv ${HOME}/.kube /tmp/'
+    # Create the kubectl config file with the external address for this server.
+    cmd = 'kubectl config set-cluster --kubeconfig=/tmp/.kube/config {0} ' \
+          '--server=http://{1}:{2}'
+    check_call(split(cmd.format(cluster_name, public_address, port)))
+    # Create a default context with the cluster.
+    cmd = 'kubectl config set-context default --kubeconfig=/tmp/.kube/config' \
+          ' --cluster={0}'
+    check_call(split(cmd.format(cluster_name)))
+    # TODO: Set the ca, cert and users via kubecfg
     # Copy the kubectl to /tmp/
     cmd = 'cp -v /usr/local/bin/kubectl /tmp/'
+    check_call(split(cmd))
     # Zip that file up.
     with chdir('/tmp'):
-        cmd = 'tar -cvzf kubebundle.tar.gz kubectl .kube'
+        cmd = 'tar -cvzf ../kubectl_package.tar.gz kubectl .kube'
+        check_call(split(cmd))
 
 
 @when('proxy.available')
@@ -114,6 +120,7 @@ def start_cadvisor():
     set_state('cadvisor.available')
     status_set('active', 'cadvisor running on port 8088')
     hookenv.open_port(8088)
+
 
 def render_files(reldata):
     '''Use jinja templating to render the docker-compose.yml and master.json
