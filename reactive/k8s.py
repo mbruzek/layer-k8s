@@ -33,7 +33,7 @@ def config_changed():
 
         if config.changed('version'):
             hookenv.log('Removing kubectl.downloaded state so the new version'
-                        'kubectl will be downloaded again.')
+                        ' of kubectl will be downloaded.')
             remove_state('kubectl.downloaded')
 
 
