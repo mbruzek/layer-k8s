@@ -31,6 +31,11 @@ def config_changed():
         docker_compose_kill_remove('proxy')
         remove_state('proxy.available')
 
+        if config.changed('version'):
+            hookenv.log('Removing kubectl.downloaded state so the new version'
+                        ' of kubectl will be downloaded.')
+            remove_state('kubectl.downloaded')
+
 
 @when('docker.available')
 @when_not('etcd.available')
@@ -80,6 +85,33 @@ def download_kubectl():
     set_state('kubectl.downloaded')
     status_set('active', 'Kubernetes installed')
 
+
+@when('kubectl.downloaded')
+@when_not('kubectl.package.created')
+def package_kubectl():
+    '''Package the kubectl binary and configuration to a tar file for users
+    to consume and interact directly with Kubernetes.'''
+    cluster_name = 'kubernetes'
+    public_address = hookenv.unit_public_ip()
+    port = '8080'
+    # Create the kubectl config file with the external address for this server.
+    cmd = 'kubectl config set-cluster --kubeconfig=/tmp/.kube/config {0} ' \
+          '--server=http://{1}:{2}'
+    check_call(split(cmd.format(cluster_name, public_address, port)))
+    # Create a default context with the cluster.
+    cmd = 'kubectl config set-context default --kubeconfig=/tmp/.kube/config' \
+          ' --cluster={0}'
+    check_call(split(cmd.format(cluster_name)))
+    # TODO: Set the ca, cert and users via kubecfg
+    # Copy the kubectl to /tmp/
+    cmd = 'cp -v /usr/local/bin/kubectl /tmp/'
+    check_call(split(cmd))
+    # Zip that file up.
+    with chdir('/tmp'):
+        cmd = 'tar -cvzf ../kubectl_package.tar.gz kubectl .kube'
+        check_call(split(cmd))
+
+
 @when('proxy.available')
 @when_not('cadvisor.available')
 def start_cadvisor():
@@ -88,6 +120,7 @@ def start_cadvisor():
     set_state('cadvisor.available')
     status_set('active', 'cadvisor running on port 8088')
     hookenv.open_port(8088)
+
 
 def render_files(reldata):
     '''Use jinja templating to render the docker-compose.yml and master.json
