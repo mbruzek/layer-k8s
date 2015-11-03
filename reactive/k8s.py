@@ -32,16 +32,18 @@ def config_changed():
         docker_compose_kill_remove('proxy')
         remove_state('proxy.available')
 
+    if config.changed('version'):
+        hookenv.log('Removing kubectl.downloaded state so the new version'
+                    ' of kubectl will be downloaded.')
+        remove_state('kubectl.downloaded')
+
+
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')
 def final_messaging():
     ''' Lower layers emit messages, and if we do not clear the status messaging
-        queue, we are left with whatever the last method call sets status to.
-        if config.changed('version'):
-            hookenv.log('Removing kubectl.downloaded state so the new version'
-' of kubectl will be downloaded.')
-remove_state('kubectl.downloaded')
+        queue, we are left with whatever the last method call sets status to.'''
 
-        It's good UX to have consistent messaging that the cluster is online'''
+    # It's good UX to have consistent messaging that the cluster is online
     if is_leader():
         status_set('active', 'Kubernetes leader running')
     else:
