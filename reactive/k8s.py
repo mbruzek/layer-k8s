@@ -11,8 +11,9 @@ from charms.reactive import when_not
 
 from charmhelpers.core import hookenv
 from charmhelpers.core.hookenv import status_set
+from charmhelpers.core.hookenv import is_leader
 from charmhelpers.core.templating import render
-
+from charmhelpers.core import unitdata
 from contextlib import contextmanager
 
 
@@ -31,11 +32,31 @@ def config_changed():
         docker_compose_kill_remove('proxy')
         remove_state('proxy.available')
 
-        if config.changed('version'):
-            hookenv.log('Removing kubectl.downloaded state so the new version'
-                        ' of kubectl will be downloaded.')
-            remove_state('kubectl.downloaded')
+    if config.changed('version'):
+        hookenv.log('Removing kubectl.downloaded state so the new version'
+                    ' of kubectl will be downloaded.')
+        remove_state('kubectl.downloaded')
 
+
+@when('kubelet.available', 'proxy.available', 'cadvisor.available')
+def final_messaging():
+    ''' Lower layers emit messages, and if we do not clear the status messaging
+        queue, we are left with whatever the last method call sets status to.'''
+
+    # It's good UX to have consistent messaging that the cluster is online
+    if is_leader():
+        status_set('active', 'Kubernetes leader running')
+    else:
+        status_set('active', 'Kubernetes follower running')
+
+@when('kubelet.available', 'proxy.available', 'cadvisor.available')
+@when_not('skydns.available')
+def launch_skydns():
+    cmd = "kubectl create -f files/manifests/skydns-rc.yml"
+    check_call(split(cmd))
+    cmd = "kubectl create -f files/manifests/skydns-svc.yml"
+    check_call(split(cmd))
+    set_state('skydns.available')
 
 @when('docker.available')
 @when_not('etcd.available')
@@ -53,7 +74,7 @@ def master(etcd):
     other master components.
     '''
     render_files(etcd)
-    status_set('maintenance', 'Starting the kubernetes master container')
+    start_services()
     with chdir('files/kubernetes'):
         # Start the kubelet container that starts the three master services.
         check_call(split('docker-compose up -d kubelet'))
@@ -111,7 +132,6 @@ def package_kubectl():
         cmd = 'tar -cvzf ../kubectl_package.tar.gz kubectl .kube'
         check_call(split(cmd))
 
-
 @when('proxy.available')
 @when_not('cadvisor.available')
 def start_cadvisor():
@@ -121,11 +141,26 @@ def start_cadvisor():
     status_set('active', 'cadvisor running on port 8088')
     hookenv.open_port(8088)
 
+@when('sdn.available')
+def gather_sdn_data():
+    # SDN Providers pass data via the unitdata.kv module
+    db = unitdata.kv()
+    # Generate an IP address for the DNS provider
+    subnet = db.get('sdn_subnet')
+    if subnet:
+        ip = subnet.split('/')[0]
+        dns_server = '.'.join(ip.split('.')[0:-1]) + '.10'
+        addedcontext = {}
+        addedcontext['dns_server'] = dns_server
+        return addedcontext
+    return {}
 
-def render_files(reldata):
+def render_files(reldata = None):
     '''Use jinja templating to render the docker-compose.yml and master.json
     file to contain the dynamic data for the configuration files.'''
     context = {}
+    # Load the context manager with sdn and config data.
+    context.update(gather_sdn_data())
     context.update(hookenv.config())
     if reldata:
         context.update({'connection_string': reldata.connection_string()})
@@ -148,6 +183,12 @@ def render_files(reldata):
     # apiserver, controller, and controller-manager
     target = os.path.join(rendered_manifest_dir, 'master.json')
     render('master.json', target, context)
+    # Render files/kubernetes/skydns-svc.yaml for SkyDNS service
+    target = os.path.join(rendered_manifest_dir, 'skydns-svc.yml')
+    render('skydns-svc.yml', target, context)
+    # Render files/kubernetes/skydns-rc.yaml for SkyDNS pods
+    target = os.path.join(rendered_manifest_dir, 'skydns-rc.yml')
+    render('skydns-rc.yml', target, context)
 
 
 @contextmanager
@@ -171,3 +212,21 @@ def docker_compose_kill_remove(service):
             # The docker-compose command to remove a service (forcefully).
             remove_command = 'docker-compose rm -f {0}'.format(service)
             check_call(split(remove_command))
+
+def start_services():
+    ''' Start all the required services for a Kubernetes cluster '''
+    with chdir('files/kubernetes'):
+        status_set('maintenance', 'Starting the kubernetes master container')
+        # Start the kubelet container that starts the three master services.
+        check_call(split('docker-compose up -d kubelet'))
+        set_state('kubelet.available')
+        # Start the proxy container
+        status_set('maintenance', 'Starting the kubernetes proxy container')
+        check_call(split('docker-compose up -d proxy'))
+        set_state('proxy.available')
+
+def recycle_kubernetes():
+    ''' Convenience method to immediately kill and restart a cluster '''
+    docker_compose_kill_remove('kubelet')
+    docker_compose_kill_remove('proxy')
+    start_services()

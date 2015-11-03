@@ -42,7 +42,7 @@ Kubernetes containers to be restarted.
 This charm makes use of the reactive framework where states are set or removed.
 The charm code can respond to these layers appropriately.
 
- **kubelet.available** - The hyperkube container has been run with the kubelet
+  **kubelet.available** - The hyperkube container has been run with the kubelet
  service and configuration that starts the apiserver, controller-manager and
  scheduler containers.
 
