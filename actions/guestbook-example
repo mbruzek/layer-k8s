@@ -12,6 +12,8 @@
 kubectl create -f files/guestbook-example/redis-master-service.yaml
 kubectl create -f files/guestbook-example/frontend-service.yaml
 
+kubectl create -f files/guestbook-example/frontend-controller.yaml
+
 kubectl create -f files/guestbook-example/redis-master-controller.yaml
 kubectl create -f files/guestbook-example/redis-master-controller.yaml
 
