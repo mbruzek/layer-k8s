@@ -52,6 +52,10 @@ def final_messaging():
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')
 @when_not('skydns.available')
 def launch_skydns():
+    # Only launch and track this state on the leader.
+    # Launching duplicate SkyDNS rc will raise an error
+    if not is_leader():
+        return
     cmd = "kubectl create -f files/manifests/skydns-rc.yml"
     check_call(split(cmd))
     cmd = "kubectl create -f files/manifests/skydns-svc.yml"
