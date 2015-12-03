@@ -31,11 +31,14 @@ kubelet:
     - /var/lib/kubelet/:/var/lib/kubelet:rw
     - /var/run:/var/run:rw
     - {{manifest_directory}}:/etc/kubernetes/manifests:rw
+    - /srv/kubernetes:/srv/kubernetes
   command: |
     /hyperkube kubelet --containerized --hostname-override="{{private_address}}"
     --address="0.0.0.0" --api-servers=http://localhost:8080
-    --config=/etc/kubernetes/manifests {% if dns_server %} --cluster-dns={{dns_server}}
-    --cluster-domain=cluster.local {% endif %}
+    --config=/etc/kubernetes/manifests {% if dns_server %}
+    --cluster-dns={{dns_server}} --cluster-domain=cluster.local {% endif %}
+    --tls-cert-file="/srv/kubernetes/server.crt"
+    --tls-private-key-file=""/srv/kubernetes/server.key"
 
 # docker run --net=host -d gcr.io/google_containers/etcd:2.0.12 \
 #   /usr/local/bin/etcd --addr=127.0.0.1:4001 --bind-addr=0.0.0.0:4001 \

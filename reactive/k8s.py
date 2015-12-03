@@ -38,6 +38,22 @@ def config_changed():
         remove_state('kubectl.downloaded')
 
 
+# I still think we need a @when here too.
+@when_not('tls.available')
+def certs():
+    '''Create the certificates that are needed for tls communication.'''
+    if is_leader():
+        check_call(split('files/create-certs.sh'))
+        # Read in the ca.crt and server.key
+        with open('/srv/kubernetes/ca.crt') as fp:
+            ca = fp.read()
+        with open('/srv/kubernetes/server.key') as fp:
+            key = fp.read()
+        leader_set({'ca':ca, 'key':key})
+        add_state('tls.available')
+
+
+
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')
 def final_messaging():
     ''' Lower layers emit messages, and if we do not clear the status messaging
@@ -48,6 +64,7 @@ def final_messaging():
         status_set('active', 'Kubernetes leader running')
     else:
         status_set('active', 'Kubernetes follower running')
+
 
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')
 @when_not('skydns.available')
@@ -61,6 +78,7 @@ def launch_skydns():
     cmd = "kubectl create -f files/manifests/skydns-svc.yml"
     check_call(split(cmd))
     set_state('skydns.available')
+
 
 @when('docker.available')
 @when_not('etcd.available')
@@ -136,6 +154,7 @@ def package_kubectl():
         cmd = 'tar -cvzf ../kubectl_package.tar.gz kubectl .kube'
         check_call(split(cmd))
 
+
 @when('proxy.available')
 @when_not('cadvisor.available')
 def start_cadvisor():
@@ -144,6 +163,7 @@ def start_cadvisor():
     set_state('cadvisor.available')
     status_set('active', 'cadvisor running on port 8088')
     hookenv.open_port(8088)
+
 
 @when('sdn.available')
 def gather_sdn_data():
@@ -159,7 +179,8 @@ def gather_sdn_data():
         return addedcontext
     return {}
 
-def render_files(reldata = None):
+
+def render_files(reldata=None):
     '''Use jinja templating to render the docker-compose.yml and master.json
     file to contain the dynamic data for the configuration files.'''
     context = {}
@@ -217,6 +238,7 @@ def docker_compose_kill_remove(service):
             remove_command = 'docker-compose rm -f {0}'.format(service)
             check_call(split(remove_command))
 
+
 def start_services():
     ''' Start all the required services for a Kubernetes cluster '''
     with chdir('files/kubernetes'):
@@ -228,6 +250,7 @@ def start_services():
         status_set('maintenance', 'Starting the kubernetes proxy container')
         check_call(split('docker-compose up -d proxy'))
         set_state('proxy.available')
+
 
 def recycle_kubernetes():
     ''' Convenience method to immediately kill and restart a cluster '''
