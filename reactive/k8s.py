@@ -12,6 +12,8 @@ from charms.reactive import when_not
 from charmhelpers.core import hookenv
 from charmhelpers.core.hookenv import status_set
 from charmhelpers.core.hookenv import is_leader
+from charmhelpers.core.hookenv import leader_set
+from charmhelpers.core.hookenv import leader_get
 from charmhelpers.core.templating import render
 from charmhelpers.core import unitdata
 from contextlib import contextmanager
@@ -38,7 +40,7 @@ def config_changed():
         remove_state('kubectl.downloaded')
 
 
-# I still think we need a @when here too.
+@when('docker.available')
 @when_not('tls.available')
 def certs():
     '''Create the certificates that are needed for tls communication.'''
@@ -49,15 +51,25 @@ def certs():
             ca = fp.read()
         with open('/srv/kubernetes/server.key') as fp:
             key = fp.read()
-        leader_set({'ca':ca, 'key':key})
-        add_state('tls.available')
-
+        leader_set({'ca': ca, 'key': key})
+        # Debug
+        print('ca:\n{0}\nkey:\n{1}'.format(ca, key))
+    else:
+        # When not the leader read the values and put the ca.crt in the keyring.
+        ca = leader_get('ca')
+        key = leader_get('key')
+        # TODO: Write these files?
+        # The api-server on other units will need server.cert and server.key
+        # TODO: How does one add a ca to keyring?
+        # Debug
+        print('ca:\n{0}\nkey:\n{1}'.format(ca, key))
+    set_state('tls.available')
 
 
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')
 def final_messaging():
-    ''' Lower layers emit messages, and if we do not clear the status messaging
-        queue, we are left with whatever the last method call sets status to.'''
+    '''Lower layers emit messages, and if we do not clear the status messaging
+       queue, we are left with whatever the last method call sets status to.'''
 
     # It's good UX to have consistent messaging that the cluster is online
     if is_leader():
