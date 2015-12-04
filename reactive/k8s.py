@@ -40,30 +40,41 @@ def config_changed():
         remove_state('kubectl.downloaded')
 
 
+@hook('leader-settings-changed')
+def leader-settings-changed():
+    '''When the leader settings changes generate a new certificate and key.'''
+    # Get the current CA value from leader-get.
+    ca = leader-get('ca')
+    cert_dir = '/srv/kubernetes'
+    if not os.path.exists(cert_dir):
+        os.makedirs_p(cert_dir)
+    ca_file = os.path.join(cert_dir, 'ca.crt')
+    if not os.path.isfile(ca_file):
+        with open(ca_file, 'w') as fp:
+            fp.write(ca)
+    # Generate the server certificate and the server key.
+    check_call(split('files/create-certs.sh {0}'.format(cert_file))
+    #TODO Stop and start the services using the certs?
+
+
 @when('docker.available')
 @when_not('tls.available')
 def certs():
-    '''Create the certificates that are needed for tls communication.'''
+    '''Create the Certificate Authority for the cluster.'''
+    # TODO investigate @run_one_time
     if is_leader():
-        check_call(split('files/create-certs.sh'))
-        # Read in the ca.crt and server.key
+        cert_dir = '/srv/kubernetes'
+        if not os.path.exists(cert_dir):
+            os.makedirs_p(cert_dir)
+        # Generate the CA for the entire cluster.
+        check_call(split('files/create-ca.sh'))
+        # Read in the ca.crt file
         with open('/srv/kubernetes/ca.crt') as fp:
             ca = fp.read()
-        with open('/srv/kubernetes/server.key') as fp:
-            key = fp.read()
-        leader_set({'ca': ca, 'key': key})
+        leader_set({'ca': ca})
         # Debug
-        print('ca:\n{0}\nkey:\n{1}'.format(ca, key))
-    else:
-        # When not the leader read the values and put the ca.crt in the keyring.
-        ca = leader_get('ca')
-        key = leader_get('key')
-        # TODO: Write these files?
-        # The api-server on other units will need server.cert and server.key
-        # TODO: How does one add a ca to keyring?
-        # Debug
-        print('ca:\n{0}\nkey:\n{1}'.format(ca, key))
-    set_state('tls.available')
+        print('ca:\n{0}'.format(ca))
+        set_state('tls.available')
 
 
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')
