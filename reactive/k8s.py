@@ -41,7 +41,7 @@ def config_changed():
 
 
 @hook('leader-settings-changed')
-def leader-settings-changed():
+def leader_settings_changed():
     '''When the leader settings changes generate a new certificate and key.'''
     # Get the current CA value from leader-get.
     ca = leader-get('ca')
@@ -53,7 +53,7 @@ def leader-settings-changed():
         with open(ca_file, 'w') as fp:
             fp.write(ca)
     # Generate the server certificate and the server key.
-    check_call(split('files/create-certs.sh {0}'.format(cert_file))
+    check_call(split('files/create-certs.sh {0}'.format(cert_file)))
     #TODO Stop and start the services using the certs?
 
 
@@ -65,7 +65,7 @@ def certs():
     if is_leader():
         cert_dir = '/srv/kubernetes'
         if not os.path.exists(cert_dir):
-            os.makedirs_p(cert_dir)
+            os.makedirs(cert_dir)
         # Generate the CA for the entire cluster.
         check_call(split('files/create-ca.sh'))
         # Read in the ca.crt file

@@ -4,7 +4,7 @@ set -ex
 # https://github.com/OpenVPN/easy-rsa/blob/master/doc/EasyRSA-Readme.md
 
 # The CN can be passed in as the first argument, if empty use address@timestamp
-cn=${1:-`Juju-Kubernetes-cluster`}
+cn=${1:-`unit-get public-address`@`date +%s`}
 
 if [ -d easy-rsa ]; then
   echo "The easy-rsa directory already exists."
