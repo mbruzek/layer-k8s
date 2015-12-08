@@ -46,26 +46,22 @@ def leader_settings_changed():
     # Get the current CA value from leader-get.
     ca = leader-get('ca')
     cert_dir = '/srv/kubernetes'
-    if not os.path.exists(cert_dir):
-        os.makedirs_p(cert_dir)
+    if not os.path.isdir(cert_dir):
+        os.makedirs(cert_dir, mode=0o770)
     ca_file = os.path.join(cert_dir, 'ca.crt')
-    if not os.path.isfile(ca_file):
-        with open(ca_file, 'w') as fp:
-            fp.write(ca)
+    # Write the CA file from the leader settings.
+    with open(ca_file, 'w') as fp:
+        fp.write(ca)
     # Generate the server certificate and the server key.
     check_call(split('files/create-certs.sh {0}'.format(cert_file)))
-    #TODO Stop and start the services using the certs?
+    remove_state('kubelet.available')
 
 
 @when('docker.available')
 @when_not('tls.available')
 def certs():
     '''Create the Certificate Authority for the cluster.'''
-    # TODO investigate @run_one_time
     if is_leader():
-        cert_dir = '/srv/kubernetes'
-        if not os.path.exists(cert_dir):
-            os.makedirs(cert_dir)
         # Generate the CA for the entire cluster.
         check_call(split('files/create-ca.sh'))
         # Read in the ca.crt file

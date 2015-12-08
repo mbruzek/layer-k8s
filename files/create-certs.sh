@@ -3,10 +3,9 @@ set -ex
 
 # https://github.com/OpenVPN/easy-rsa/blob/master/doc/EasyRSA-Readme.md
 
-ca=$1
-
-private_address=`unit-get private-address`
-public_address=`unit-get public-address`
+ca=${1:-"/srv/kubernetes/ca.crt"}
+private_address=${2:-`unit-get private-address`}
+public_address=${3:-`unit-get public-address`}
 
 if [ -d easy-rsa ]; then
   echo "The easy-rsa directory already exists."
