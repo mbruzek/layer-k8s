@@ -43,34 +43,31 @@ def config_changed():
 @hook('leader-settings-changed')
 def leader_settings_changed():
     '''When the leader settings changes generate a new certificate and key.'''
-    # Get the current CA value from leader-get.
-    ca = leader-get('ca')
-    cert_dir = '/srv/kubernetes'
-    if not os.path.isdir(cert_dir):
-        os.makedirs(cert_dir, mode=0o770)
-    ca_file = os.path.join(cert_dir, 'ca.crt')
-    # Write the CA file from the leader settings.
+    # Get the current CA value from leader_get.
+    ca = leader_get('ca')
+    ca_file = '/usr/local/share/ca-certificates/ca.crt'
+    # Install the CA file from the leader settings.
     with open(ca_file, 'w') as fp:
         fp.write(ca)
-    # Generate the server certificate and the server key.
-    check_call(split('files/create-certs.sh {0}'.format(cert_file)))
-    remove_state('kubelet.available')
+    # Update the Certificate Authorities on this system.
+    check_call(split('update-ca-certificates'))
 
 
 @when('docker.available')
-@when_not('tls.available')
+@when_not('ca.available')
 def certs():
-    '''Create the Certificate Authority for the cluster.'''
+    '''Create the Certificate Authority for the cluster, use leader-set to
+    send this data to peers of this service.'''
     if is_leader():
         # Generate the CA for the entire cluster.
         check_call(split('files/create-ca.sh'))
+        # Generate the server certificate and server key for this system.
+        check_call(split('files/create-certs.sh'))
         # Read in the ca.crt file
         with open('/srv/kubernetes/ca.crt') as fp:
             ca = fp.read()
         leader_set({'ca': ca})
-        # Debug
-        print('ca:\n{0}'.format(ca))
-        set_state('tls.available')
+        set_state('ca.available')
 
 
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')

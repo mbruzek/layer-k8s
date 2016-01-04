@@ -9,15 +9,16 @@ public_address=${3:-`unit-get public-address`}
 
 if [ -d easy-rsa ]; then
   echo "The easy-rsa directory already exists."
+  cd easy-rsa/easyrsa3/
 else
   # Clone the latest easy-rsa scripts, so we can use subject-alt-name.
   git clone https://github.com/OpenVPN/easy-rsa.git
+  cd easy-rsa/easyrsa3/
+  # Initalize easy-rsa so a Certificate of Authority can be created.
+  ./easyrsa init-pki 2>&1 > /dev/null
 fi
-cd easy-rsa/easyrsa3/
 
-# Initalize easy-rsa so a Certificate of Authority can be created.
-./easyrsa init-pki 2>&1 > /dev/null
-
+# Copy the Certificate Authority from the /srv/kubernetes directory.
 cp -v ${ca} pki/
 
 # Create a list of alternate server names with the public and private address.
