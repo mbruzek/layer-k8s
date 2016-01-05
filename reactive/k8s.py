@@ -1,6 +1,7 @@
 import os
 
 from shlex import split
+from shutil import copy2
 from subprocess import check_call
 
 from charms.reactive import hook
@@ -10,10 +11,9 @@ from charms.reactive import when
 from charms.reactive import when_not
 
 from charmhelpers.core import hookenv
-from charmhelpers.core.hookenv import status_set
 from charmhelpers.core.hookenv import is_leader
-from charmhelpers.core.hookenv import leader_set
-from charmhelpers.core.hookenv import leader_get
+from charmhelpers.core.hookenv import status_set
+from charmhelpers.core.hookenv import unit_get
 from charmhelpers.core.templating import render
 from charmhelpers.core import unitdata
 from contextlib import contextmanager
@@ -21,7 +21,7 @@ from contextlib import contextmanager
 
 @hook('config-changed')
 def config_changed():
-    '''If the configuration values change, remove the available state.'''
+    '''If the configuration values change, remove the available states.'''
     config = hookenv.config()
     if any(config.changed(key) for key in config.keys()):
         hookenv.log('Configuration options have changed.')
@@ -40,41 +40,37 @@ def config_changed():
         remove_state('kubectl.downloaded')
 
 
-@hook('leader-settings-changed')
-def leader_settings_changed():
-    '''When the leader settings changes generate a new certificate and key.'''
-    # Get the current CA value from leader_get.
-    ca = leader_get('ca')
-    ca_file = '/usr/local/share/ca-certificates/ca.crt'
-    # Install the CA file from the leader settings.
-    with open(ca_file, 'w') as fp:
-        fp.write(ca)
-    # Update the Certificate Authorities on this system.
-    check_call(split('update-ca-certificates'))
-
-
-@when('docker.available')
-@when_not('ca.available')
+@when('docker.available', 'server certificate available')
+@when_not('certificate.available')
 def certs():
-    '''Create the Certificate Authority for the cluster, use leader-set to
-    send this data to peers of this service.'''
-    if is_leader():
-        # Generate the CA for the entire cluster.
-        check_call(split('files/create-ca.sh'))
-        # Generate the server certificate and server key for this system.
-        check_call(split('files/create-certs.sh'))
-        # Read in the ca.crt file
-        with open('/srv/kubernetes/ca.crt') as fp:
-            ca = fp.read()
-        leader_set({'ca': ca})
-        set_state('ca.available')
+    '''Write the certificates for this server, and copy the server key.'''
+    # Ensure the /srv/kubernetes directory exists.
+    directory = '/srv/kubernetes'
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+        os.chmod(directory, 0o770)
+    # The certificate and keys will be kept here.
+    server_cert_file = os.path.join(directory, 'server.crt')
+    server_key_file = os.path.join(directory, 'server.key')
+
+    key_value = unitdata.kv()
+    server_cert = key_value.get('tls.server.certificate')
+    with open(server_cert_file, 'w') as fp:
+        fp.write(server_cert)
+
+    local_key_name = 'server'
+    local_key_path = 'easy-rsa/easyrsa3/pki/private/{0}.key'
+    # The server key is named differently on the master than the followers.
+    if not os.path.isfile(local_key_path.format(local_key_name)):
+        local_key_name = unit_get('public-address')
+    copy2(local_key_path.format(local_key_name), server_key_file)
+    set_state('certificate.available')
 
 
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')
 def final_messaging():
     '''Lower layers emit messages, and if we do not clear the status messaging
-       queue, we are left with whatever the last method call sets status to.'''
-
+    queue, we are left with whatever the last method call sets status to. '''
     # It's good UX to have consistent messaging that the cluster is online
     if is_leader():
         status_set('active', 'Kubernetes leader running')
@@ -85,6 +81,8 @@ def final_messaging():
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')
 @when_not('skydns.available')
 def launch_skydns():
+    '''Create a kubernetes service and resource controller for the skydns
+    service. '''
     # Only launch and track this state on the leader.
     # Launching duplicate SkyDNS rc will raise an error
     if not is_leader():
@@ -109,8 +107,7 @@ def relation_message():
 def master(etcd):
     '''Install and run the hyperkube container that starts kubernetes-master.
     This actually runs the kubelet, which in turn runs a pod that contains the
-    other master components.
-    '''
+    other master components. '''
     render_files(etcd)
     start_services()
     with chdir('files/kubernetes'):
@@ -174,6 +171,8 @@ def package_kubectl():
 @when('proxy.available')
 @when_not('cadvisor.available')
 def start_cadvisor():
+    '''Start the cAdvisor container that gives metrics about the other
+    application containers on this system. '''
     with chdir('files/kubernetes'):
         check_call(split('docker-compose up -d cadvisor'))
     set_state('cadvisor.available')
@@ -183,6 +182,8 @@ def start_cadvisor():
 
 @when('sdn.available')
 def gather_sdn_data():
+    '''Get the Software Defined Network (SDN) information and return it as a
+    dictionary.'''
     # SDN Providers pass data via the unitdata.kv module
     db = unitdata.kv()
     # Generate an IP address for the DNS provider

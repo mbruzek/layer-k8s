@@ -1,1 +1,1 @@
-includes: ['layer:docker', 'layer:flannel', 'interface:etcd']
+includes: ['layer:docker', 'layer:flannel', 'layer:tls', 'interface:etcd']

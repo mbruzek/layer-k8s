@@ -7,13 +7,6 @@ options:
         inserted in the configuration files that specify the hyperkube
         container to use when starting a Kubernetes cluster.  Changing this
         value will restart the Kubernetes cluster.
-  ca:
-    type: string
-    default: ""
-    description: |
-        The Certificate Authority for this Kubernetes cluster. The default of
-        none will generate a self signed Certficate Authroity. This will be used
-        to generate cerificates and keys for the cluster.
   cidr:
     type: string
     default: 10.1.0.0/16
