@@ -8,6 +8,7 @@
 #     --volume=/var/lib/kubelet/:/var/lib/kubelet:rw \
 #     --volume=/var/run:/var/run:rw \
 #     --volume=/var/lib/juju/agents/unit-k8s-0/charm/files/manifests:/etc/kubernetes/manifests:rw \
+#     --volume=/srv/kubernetes:/srv/kubernetes \
 #     --net=host \
 #     --pid=host \
 #     --privileged=true \
