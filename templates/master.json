@@ -21,11 +21,21 @@
       "command": [
               "/hyperkube",
               "apiserver",
-              "--service-cluster-ip-range={{cidr}}",
               "--address=0.0.0.0",
-              "--etcd-servers={{connection_string}}",
+              "--client_ca_file=/srv/kubernetes/ca.crt",
               "--cluster-name=kubernetes",
+              "--etcd-servers={{connection_string}}",
+              "--service-cluster-ip-range={{cidr}}",
+              "--tls-cert-file=/srv/kubernetes/server.crt",
+              "--tls-private-key-file=/srv/kubernetes/server.key",
               "--v=2"
+        ],
+      "volumeMounts": [
+          {
+              "mountPath": "/srv/kubernetes",
+              "name": "certs-kubernetes",
+              "readOnly": true
+          }
         ]
     },
     {
@@ -38,6 +48,14 @@
               "--v=2"
         ]
     }
-  ]
+  ],
+  "volumes": [
+      {
+          "hostPath": {
+              "path": "/srv/kubernetes"
+          },
+          "name": "certs-kubernetes"
+      }
+    ]
  }
 }
