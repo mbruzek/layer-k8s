@@ -13,7 +13,6 @@ from charms.reactive import when_not
 from charmhelpers.core import hookenv
 from charmhelpers.core.hookenv import is_leader
 from charmhelpers.core.hookenv import status_set
-from charmhelpers.core.hookenv import unit_get
 from charmhelpers.core.templating import render
 from charmhelpers.core import unitdata
 from contextlib import contextmanager
@@ -40,31 +39,45 @@ def config_changed():
         remove_state('kubectl.downloaded')
 
 
-@when('docker.available', 'server certificate available')
-@when_not('certificate.available')
-def certs():
-    '''Write the certificates for this server, and copy the server key.'''
+@when('tls.server.certificate available')
+@when_not('k8s.server.certificate available')
+def server_cert():
+    '''When the server certificate is available, get the server certificate from
+    the charm unit data and write it to the proper directory. '''
+    save_certificate('/srv/kubernetes', 'server')
+    copy_key('/srv/kubernetes', 'server')
+    set_state('k8s.server.certificate available')
+
+
+@when('tls.client.certificate available')
+@when_not('k8s.client.certficate available')
+def client_cert():
+    '''When the client certificate is available, get the client certificate
+    from the charm unitdata and write it to the proper directory. '''
+    save_certificate('/srv/kubernetes', 'client')
+    copy_key('/srv/kubernetes', 'client')
+    set_state('k8s.client.certificate available')
+
+
+@when('tls.certificate.authority available')
+@when_not('k8s.certificate.authority available')
+def ca():
+    '''When the Certificate Authority is available, copy the CA from the
+    /usr/local/share/ca-certificates/k8s.crt to the proper directory. '''
     # Ensure the /srv/kubernetes directory exists.
     directory = '/srv/kubernetes'
     if not os.path.isdir(directory):
         os.makedirs(directory)
         os.chmod(directory, 0o770)
-    # The certificate and keys will be kept here.
-    server_cert_file = os.path.join(directory, 'server.crt')
-    server_key_file = os.path.join(directory, 'server.key')
-
-    key_value = unitdata.kv()
-    server_cert = key_value.get('tls.server.certificate')
-    with open(server_cert_file, 'w') as fp:
-        fp.write(server_cert)
-
-    local_key_name = 'server'
-    local_key_path = 'easy-rsa/easyrsa3/pki/private/{0}.key'
-    # The server key is named differently on the master than the followers.
-    if not os.path.isfile(local_key_path.format(local_key_name)):
-        local_key_name = unit_get('public-address')
-    copy2(local_key_path.format(local_key_name), server_key_file)
-    set_state('certificate.available')
+    # Normally the CA is just on the leader, but the tls layer installs the
+    # CA on all systems in the /usr/local/share/ca-certificates directory.
+    ca_path = '/usr/local/share/ca-certificates/{0}.crt'.format(
+              hookenv.service_name())
+    # The CA should be copied to the destination directory and named 'ca.crt'.
+    destination_ca_path = os.path.join(directory, 'ca.crt')
+    if os.path.isfile(ca_path):
+        copy2(ca_path, destination_ca_path)
+        set_state('k8s.certificate.authority available')
 
 
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')
@@ -197,6 +210,44 @@ def gather_sdn_data():
     return {}
 
 
+@contextmanager
+def chdir(path):
+    '''Change the current working directory to a different directory to run
+    commands and return to the previous directory after the command is done.'''
+    old_dir = os.getcwd()
+    os.chdir(path)
+    yield
+    os.chdir(old_dir)
+
+
+def copy_key(directory, prefix):
+    '''Copy the key from the easy-rsa/easyrsa3/pki/private directory to the
+    specified directory. '''
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+        os.chmod(directory, 0o770)
+    # The key is not in unitdata it is in the local easy-rsa directory.
+    local_key_path = 'easy-rsa/easyrsa3/pki/private/{0}.key'.format(prefix)
+    key_name = '{0}.key'.format(prefix)
+    # The key should be copied to this directory.
+    destination_key_path = os.path.join(directory, key_name)
+    # Copy the key file from the local directory to the destination.
+    copy2(local_key_path, destination_key_path)
+
+
+def docker_compose_kill_remove(service):
+    '''Use docker-compose commands to kill and remove the service.'''
+    # The docker-compose.yml file is required to run docker-compose commands.
+    if os.path.isfile('files/kubernetes/docker-compose.yml'):
+        with chdir('files/kubernetes'):
+            # The docker-compose command to kill a service.
+            kill_command = 'docker-compose kill {0}'.format(service)
+            check_call(split(kill_command))
+            # The docker-compose command to remove a service (forcefully).
+            remove_command = 'docker-compose rm -f {0}'.format(service)
+            check_call(split(remove_command))
+
+
 def render_files(reldata=None):
     '''Use jinja templating to render the docker-compose.yml and master.json
     file to contain the dynamic data for the configuration files.'''
@@ -233,27 +284,21 @@ def render_files(reldata=None):
     render('skydns-rc.yml', target, context)
 
 
-@contextmanager
-def chdir(path):
-    '''Change the current working directory to a different directory to run
-    commands and return to the previous directory after the command is done.'''
-    old_dir = os.getcwd()
-    os.chdir(path)
-    yield
-    os.chdir(old_dir)
-
-
-def docker_compose_kill_remove(service):
-    '''Use docker-compose commands to kill and remove the service.'''
-    # The docker-compose.yml file is required to run docker-compose commands.
-    if os.path.isfile('files/kubernetes/docker-compose.yml'):
-        with chdir('files/kubernetes'):
-            # The docker-compose command to kill a service.
-            kill_command = 'docker-compose kill {0}'.format(service)
-            check_call(split(kill_command))
-            # The docker-compose command to remove a service (forcefully).
-            remove_command = 'docker-compose rm -f {0}'.format(service)
-            check_call(split(remove_command))
+def save_certificate(directory, prefix):
+    '''Get the certificate from the charm unitdata, and write it to the proper
+    directory. The parameters are directory to save, and prefix to use.'''
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+        os.chmod(directory, 0o770)
+    # Grab the unitdata key value store.
+    store = unitdata.kv()
+    certificate_data = store.get('tls.{0}.certificate'.format(prefix))
+    certificate_name = '{0}.crt'.format(prefix)
+    # The certificate should be saved to this directory.
+    certificate_path = os.path.join(directory, certificate_name)
+    # write the server certificate out to the correct location
+    with open(certificate_path, 'w') as fp:
+        fp.write(certificate_data)
 
 
 def start_services():
@@ -267,10 +312,3 @@ def start_services():
         status_set('maintenance', 'Starting the kubernetes proxy container')
         check_call(split('docker-compose up -d proxy'))
         set_state('proxy.available')
-
-
-def recycle_kubernetes():
-    ''' Convenience method to immediately kill and restart a cluster '''
-    docker_compose_kill_remove('kubelet')
-    docker_compose_kill_remove('proxy')
-    start_services()
