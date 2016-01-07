@@ -182,6 +182,7 @@ def package_kubectl():
     cluster_name = 'kubernetes'
     public_address = hookenv.unit_public_ip()
     directory = '/tmp'
+    user = 'ubuntu'
     ca = '/srv/kubernetes/ca.crt'
     key = '/srv/kubernetes/client.key'
     cert = '/srv/kubernetes/client.crt'
