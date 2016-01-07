@@ -47,8 +47,8 @@ def server_cert():
     destination_directory = '/srv/kubernetes'
     # Save the server certificate from unitdata to /srv/kubernetes/server.crt
     save_certificate(destination_directory, 'server')
-    # Copy the unit_name.key to /srv/kubernetes/client.key
-    copy_key(destination_directory, 'client')
+    # Copy the unitname.key to /srv/kubernetes/server.key
+    copy_key(destination_directory, 'server')
     set_state('k8s.server.certificate available')
 
 
@@ -58,11 +58,21 @@ def client_cert():
     '''When the client certificate is available, get the client certificate
     from the charm unitdata and write it to the proper directory. '''
     destination_directory = '/srv/kubernetes'
-    # Save the client certificate from unitdata to /srv/kubernetes/client.crt
-    save_certificate(destination_directory, 'client')
-    # Copy the unit_name.key to /srv/kubernetes/client.key
-    copy_key('/srv/kubernetes', 'client')
-    set_state('k8s.client.certificate available')
+    if not os.path.isdir(destination_directory):
+        os.makedirs(destination_directory)
+        os.chmod(destination_directory, 0o770)
+    # The client certificate is also available on charm unitdata.
+    client_cert_path = 'easy-rsa/easyrsa3/pki/issued/client.crt'
+    kube_cert_path = os.path.join(destination_directory, 'client.crt')
+    if os.path.isfile(client_cert_path):
+        # Copy the client.crt to /srv/kubernetes/client.crt
+        copy2(client_cert_path, kube_cert_path)
+    # The client key is only available on the leader.
+    client_key_path = 'easy-rsa/easyrsa3/pki/private/client.key'
+    kube_key_path = os.path.join(destination_directory, 'client.key')
+    if os.path.isfile(client_key_path):
+        # Copy the client.key to /srv/kubernetes/client.key
+        copy2(client_key_path, kube_key_path)
 
 
 @when('tls.certificate.authority available')
@@ -166,25 +176,39 @@ def download_kubectl():
 def package_kubectl():
     '''Package the kubectl binary and configuration to a tar file for users
     to consume and interact directly with Kubernetes.'''
+    if not is_leader():
+        return
+    context = 'default-context'
     cluster_name = 'kubernetes'
     public_address = hookenv.unit_public_ip()
-    port = '8080'
+    directory = '/tmp'
+    ca = '/srv/kubernetes/ca.crt'
+    key = '/srv/kubernetes/client.key'
+    cert = '/srv/kubernetes/client.crt'
+    port = '6443'
     # Create the kubectl config file with the external address for this server.
-    cmd = 'kubectl config set-cluster --kubeconfig=/tmp/.kube/config {0} ' \
-          '--server=http://{1}:{2}'
-    check_call(split(cmd.format(cluster_name, public_address, port)))
+    cmd = 'kubectl config set-cluster --kubeconfig={0}/.kube/config {1} ' \
+          '--server=https://{2}:{3}'
+    check_call(split(cmd.format(directory, cluster_name, public_address, port)))
+    # Create the credentials.
+    cmd = 'kubectl config set-credentials --kubeconfig={0}/.kube/config {1} ' \
+          '--certificate-authority={2} --client-key={3} --client-certificate={4}'
+    check_call(split(cmd.format(directory, user, ca, key, cert)))
     # Create a default context with the cluster.
-    cmd = 'kubectl config set-context default --kubeconfig=/tmp/.kube/config' \
-          ' --cluster={0}'
-    check_call(split(cmd.format(cluster_name)))
-    # TODO: Set the ca, cert and users via kubecfg
-    # Copy the kubectl to /tmp/
+    cmd = 'kubectl config set-context --kubeconfig={0}/.kube/config {1}' \
+          ' --cluster={2}'
+    check_call(split(cmd.format(directory, context, cluster_name)))
+    # Now make the config use this new context.
+    cmd = 'kubectl config use-context --kubeconfig={0}/.kube/config {1}'
+    check_call(split(cmd.format(directory, context)))
+    # Copy the kubectl binary to /tmp/
     cmd = 'cp -v /usr/local/bin/kubectl /tmp/'
     check_call(split(cmd))
     # Zip that file up.
     with chdir('/tmp'):
-        cmd = 'tar -cvzf ../kubectl_package.tar.gz kubectl .kube'
-        check_call(split(cmd))
+        cmd = 'tar -cvzf ../kubectl_package.tar.gz kubectl .kube {0} {1} {2}'
+        check_call(split(cmd.format(ca, key, cert)))
+        set_state('kubectl.package.created')
 
 
 @when('proxy.available')
