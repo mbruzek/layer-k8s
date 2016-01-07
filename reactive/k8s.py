@@ -144,7 +144,7 @@ def master(etcd):
         check_call(split('docker-compose up -d kubelet'))
         set_state('kubelet.available')
         # Open the ports for api-server.
-        hookenv.open_port(8080)
+        #hookenv.open_port(8080)
         hookenv.open_port(6443)
         # Start the proxy container
         status_set('maintenance', 'Starting the kubernetes proxy container')
