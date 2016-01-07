@@ -44,8 +44,11 @@ def config_changed():
 def server_cert():
     '''When the server certificate is available, get the server certificate from
     the charm unit data and write it to the proper directory. '''
-    save_certificate('/srv/kubernetes', 'server')
-    copy_key('/srv/kubernetes', 'server')
+    destination_directory = '/srv/kubernetes'
+    # Save the server certificate from unitdata to /srv/kubernetes/server.crt
+    save_certificate(destination_directory, 'server')
+    # Copy the unit_name.key to /srv/kubernetes/client.key
+    copy_key(destination_directory, 'client')
     set_state('k8s.server.certificate available')
 
 
@@ -54,7 +57,10 @@ def server_cert():
 def client_cert():
     '''When the client certificate is available, get the client certificate
     from the charm unitdata and write it to the proper directory. '''
-    save_certificate('/srv/kubernetes', 'client')
+    destination_directory = '/srv/kubernetes'
+    # Save the client certificate from unitdata to /srv/kubernetes/client.crt
+    save_certificate(destination_directory, 'client')
+    # Copy the unit_name.key to /srv/kubernetes/client.key
     copy_key('/srv/kubernetes', 'client')
     set_state('k8s.client.certificate available')
 
@@ -226,8 +232,10 @@ def copy_key(directory, prefix):
     if not os.path.isdir(directory):
         os.makedirs(directory)
         os.chmod(directory, 0o770)
+    # Must remove the path characters from the local unit name.
+    path_name = hookenv.local_unit().replace('/', '_')
     # The key is not in unitdata it is in the local easy-rsa directory.
-    local_key_path = 'easy-rsa/easyrsa3/pki/private/{0}.key'.format(prefix)
+    local_key_path = 'easy-rsa/easyrsa3/pki/private/{0}.key'.format(path_name)
     key_name = '{0}.key'.format(prefix)
     # The key should be copied to this directory.
     destination_key_path = os.path.join(directory, key_name)
