@@ -181,39 +181,35 @@ def package_kubectl():
     context = 'default-context'
     cluster_name = 'kubernetes'
     public_address = hookenv.unit_public_ip()
-    directory = '/tmp'
+    directory = '/srv/kubernetes'
+    key = 'client.key'
+    ca = 'ca.crt'
+    cert = 'client.crt'
     user = 'ubuntu'
-    ca = '/srv/kubernetes/ca.crt'
-    key = '/srv/kubernetes/client.key'
-    cert = '/srv/kubernetes/client.crt'
     port = '6443'
-    # Create the kubectl config file with the external address for this server.
-    cmd = 'kubectl config set-cluster --kubeconfig={0}/.kube/config {1} ' \
-          '--server=https://{2}:{3} --certificate-authority={4}'
-    check_call(split(cmd.format(directory, cluster_name, public_address, port,
-                                ca)))
-    # Create the credentials.
-    cmd = 'kubectl config set-credentials --kubeconfig={0}/.kube/config {1} ' \
-          '--client-key={2} --client-certificate={3}'
-    check_call(split(cmd.format(directory, user, key, cert)))
-    # Create a default context with the cluster.
-    cmd = 'kubectl config set-context --kubeconfig={0}/.kube/config {1}' \
-          ' --cluster={2} --user={3}'
-    check_call(split(cmd.format(directory, context, cluster_name, user)))
-    # Now make the config use this new context.
-    cmd = 'kubectl config use-context --kubeconfig={0}/.kube/config {1}'
-    check_call(split(cmd.format(directory, context)))
-    # Copy the kubectl binary to /tmp/
-    cmd = 'cp -v /usr/local/bin/kubectl {0}'.format(directory)
-    check_call(split(cmd))
-
-    copy2(ca, directory)
-    copy2(cert, directory)
-    copy2(key, directory)
-
-    # Zip that file up.
     with chdir(directory):
-        cmd = 'tar -cvzf ../kubectl_package.tar.gz kubectl .kube ca.crt client.key client.crt'  # noqa
+        # Create the config file with the external address for this server.
+        cmd = 'kubectl config set-cluster --kubeconfig={0}/config {1} ' \
+              '--server=https://{2}:{3} --certificate-authority={4}'
+        check_call(split(cmd.format(directory, cluster_name, public_address,
+                                    port, ca)))
+        # Create the credentials.
+        cmd = 'kubectl config set-credentials --kubeconfig={0}/config {1} ' \
+              '--client-key={2} --client-certificate={3}'
+        check_call(split(cmd.format(directory, user, key, cert)))
+        # Create a default context with the cluster.
+        cmd = 'kubectl config set-context --kubeconfig={0}/config {1}' \
+              ' --cluster={2} --user={3}'
+        check_call(split(cmd.format(directory, context, cluster_name, user)))
+        # Now make the config use this new context.
+        cmd = 'kubectl config use-context --kubeconfig={0}/config {1}'
+        check_call(split(cmd.format(directory, context)))
+        # Copy the kubectl binary to this directory
+        cmd = 'cp -v /usr/local/bin/kubectl {0}'.format(directory)
+        check_call(split(cmd))
+
+        # Create an archive with all the necessary files.
+        cmd = 'tar -cvzf /home/ubuntu/kubectl_package.tar.gz ca.crt client.crt client.key config kubectl'  # noqa
         check_call(split(cmd))
         set_state('kubectl.package.created')
 
