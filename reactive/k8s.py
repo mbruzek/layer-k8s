@@ -143,8 +143,7 @@ def master(etcd):
         # Start the kubelet container that starts the three master services.
         check_call(split('docker-compose up -d kubelet'))
         set_state('kubelet.available')
-        # Open the ports for api-server.
-        # hookenv.open_port(8080)
+        # Open the secure port for api-server.
         hookenv.open_port(6443)
         # Start the proxy container
         status_set('maintenance', 'Starting the kubernetes proxy container')
@@ -321,7 +320,8 @@ def render_files(reldata=None):
 
 def save_certificate(directory, prefix):
     '''Get the certificate from the charm unitdata, and write it to the proper
-    directory. The parameters are directory to save, and prefix to use.'''
+    directory. The parameters are: destination directory, and prefix to use
+    for the key and certificate name.'''
     if not os.path.isdir(directory):
         os.makedirs(directory)
         os.chmod(directory, 0o770)
