@@ -131,7 +131,7 @@ def relation_message():
     status_set('waiting', 'Waiting for relation to ETCD')
 
 
-@when('etcd.available')
+@when('etcd.available', 'tls.server.certificate available')
 @when_not('kubelet.available')
 def master(etcd):
     '''Install and run the hyperkube container that starts kubernetes-master.
@@ -144,7 +144,7 @@ def master(etcd):
         check_call(split('docker-compose up -d kubelet'))
         set_state('kubelet.available')
         # Open the ports for api-server.
-        #hookenv.open_port(8080)
+        # hookenv.open_port(8080)
         hookenv.open_port(6443)
         # Start the proxy container
         status_set('maintenance', 'Starting the kubernetes proxy container')
@@ -189,26 +189,32 @@ def package_kubectl():
     port = '6443'
     # Create the kubectl config file with the external address for this server.
     cmd = 'kubectl config set-cluster --kubeconfig={0}/.kube/config {1} ' \
-          '--server=https://{2}:{3}'
-    check_call(split(cmd.format(directory, cluster_name, public_address, port)))
+          '--server=https://{2}:{3} --certificate-authority={4}'
+    check_call(split(cmd.format(directory, cluster_name, public_address, port,
+                                ca)))
     # Create the credentials.
     cmd = 'kubectl config set-credentials --kubeconfig={0}/.kube/config {1} ' \
-          '--certificate-authority={2} --client-key={3} --client-certificate={4}'
-    check_call(split(cmd.format(directory, user, ca, key, cert)))
+          '--client-key={2} --client-certificate={3}'
+    check_call(split(cmd.format(directory, user, key, cert)))
     # Create a default context with the cluster.
     cmd = 'kubectl config set-context --kubeconfig={0}/.kube/config {1}' \
-          ' --cluster={2}'
-    check_call(split(cmd.format(directory, context, cluster_name)))
+          ' --cluster={2} --user={3}'
+    check_call(split(cmd.format(directory, context, cluster_name, user)))
     # Now make the config use this new context.
     cmd = 'kubectl config use-context --kubeconfig={0}/.kube/config {1}'
     check_call(split(cmd.format(directory, context)))
     # Copy the kubectl binary to /tmp/
-    cmd = 'cp -v /usr/local/bin/kubectl /tmp/'
+    cmd = 'cp -v /usr/local/bin/kubectl {0}'.format(directory)
     check_call(split(cmd))
+
+    copy2(ca, directory)
+    copy2(cert, directory)
+    copy2(key, directory)
+
     # Zip that file up.
-    with chdir('/tmp'):
-        cmd = 'tar -cvzf ../kubectl_package.tar.gz kubectl .kube {0} {1} {2}'
-        check_call(split(cmd.format(ca, key, cert)))
+    with chdir(directory):
+        cmd = 'tar -cvzf ../kubectl_package.tar.gz kubectl .kube ca.crt client.key client.crt'  # noqa
+        check_call(split(cmd))
         set_state('kubectl.package.created')
 
 
