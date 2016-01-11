@@ -4,6 +4,7 @@ from shlex import split
 from shutil import copy2
 from subprocess import check_call
 
+from charms.docker.compose import Compose
 from charms.reactive import hook
 from charms.reactive import remove_state
 from charms.reactive import set_state
@@ -24,13 +25,19 @@ def config_changed():
     config = hookenv.config()
     if any(config.changed(key) for key in config.keys()):
         hookenv.log('Configuration options have changed.')
-
-        hookenv.log('Removing kubelet service and kubelet.available state.')
-        docker_compose_kill_remove('kubelet')
+        # Use the Compose class that encapsulates the docker-compose commands.
+        compose = Compose('files/kubernetes')
+        hookenv.log('Removing kubelet container and kubelet.available state.')
+        # Stop and remove the Kubernetes kubelet container..
+        compose.kill('kubelet')
+        compose.rm('kubelet')
+        # Remove the state so the code can react to restarting kubelet.
         remove_state('kubelet.available')
-
-        hookenv.log('Removing proxy service and proxy.available state.')
-        docker_compose_kill_remove('proxy')
+        hookenv.log('Removing proxy container and proxy.available state.')
+        # Stop and remove the Kubernetes proxy container.
+        compose.kill('proxy')
+        compose.rm('proxy')
+        # Remove the state so the code can react to restarting proxy.
         remove_state('proxy.available')
 
     if config.changed('version'):
@@ -132,24 +139,24 @@ def relation_message():
 
 
 @when('etcd.available', 'tls.server.certificate available')
-@when_not('kubelet.available')
+@when_not('kubelet.available', 'proxy.available')
 def master(etcd):
     '''Install and run the hyperkube container that starts kubernetes-master.
     This actually runs the kubelet, which in turn runs a pod that contains the
     other master components. '''
     render_files(etcd)
-    start_services()
-    with chdir('files/kubernetes'):
-        # Start the kubelet container that starts the three master services.
-        check_call(split('docker-compose up -d kubelet'))
-        set_state('kubelet.available')
-        # Open the secure port for api-server.
-        hookenv.open_port(6443)
-        # Start the proxy container
-        status_set('maintenance', 'Starting the kubernetes proxy container')
-        check_call(split('docker-compose up -d proxy'))
-        set_state('proxy.available')
-    # TODO: verify with juju action-do kubernetes/0 get-credentials
+    # Use the Compose class that encapsulates the docker-compose commands.
+    compose = Compose('files/kubernetes')
+    status_set('maintenance', 'Starting the Kubernetes kubelet container.')
+    # Start the Kubernetes kubelet container using docker-compose.
+    compose.up('kubelet')
+    set_state('kubelet.available')
+    # Open the secure port for api-server.
+    hookenv.open_port(6443)
+    status_set('maintenance', 'Starting the Kubernetes proxy container')
+    # Start the Kubernetes proxy container using docker-compose.
+    compose.up('proxy')
+    set_state('proxy.available')
     status_set('active', 'Kubernetes started')
 
 
@@ -218,8 +225,8 @@ def package_kubectl():
 def start_cadvisor():
     '''Start the cAdvisor container that gives metrics about the other
     application containers on this system. '''
-    with chdir('files/kubernetes'):
-        check_call(split('docker-compose up -d cadvisor'))
+    compose = Compose('files/kuberentes')
+    compose.up('cadvisor')
     set_state('cadvisor.available')
     status_set('active', 'cadvisor running on port 8088')
     hookenv.open_port(8088)
@@ -267,19 +274,6 @@ def copy_key(directory, prefix):
     destination_key_path = os.path.join(directory, key_name)
     # Copy the key file from the local directory to the destination.
     copy2(local_key_path, destination_key_path)
-
-
-def docker_compose_kill_remove(service):
-    '''Use docker-compose commands to kill and remove the service.'''
-    # The docker-compose.yml file is required to run docker-compose commands.
-    if os.path.isfile('files/kubernetes/docker-compose.yml'):
-        with chdir('files/kubernetes'):
-            # The docker-compose command to kill a service.
-            kill_command = 'docker-compose kill {0}'.format(service)
-            check_call(split(kill_command))
-            # The docker-compose command to remove a service (forcefully).
-            remove_command = 'docker-compose rm -f {0}'.format(service)
-            check_call(split(remove_command))
 
 
 def render_files(reldata=None):
@@ -334,16 +328,3 @@ def save_certificate(directory, prefix):
     # write the server certificate out to the correct location
     with open(certificate_path, 'w') as fp:
         fp.write(certificate_data)
-
-
-def start_services():
-    ''' Start all the required services for a Kubernetes cluster '''
-    with chdir('files/kubernetes'):
-        status_set('maintenance', 'Starting the kubernetes master container')
-        # Start the kubelet container that starts the three master services.
-        check_call(split('docker-compose up -d kubelet'))
-        set_state('kubelet.available')
-        # Start the proxy container
-        status_set('maintenance', 'Starting the kubernetes proxy container')
-        check_call(split('docker-compose up -d proxy'))
-        set_state('proxy.available')
