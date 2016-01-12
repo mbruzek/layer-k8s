@@ -225,7 +225,7 @@ def package_kubectl():
 def start_cadvisor():
     '''Start the cAdvisor container that gives metrics about the other
     application containers on this system. '''
-    compose = Compose('files/kuberentes')
+    compose = Compose('files/kubernetes')
     compose.up('cadvisor')
     set_state('cadvisor.available')
     status_set('active', 'cadvisor running on port 8088')
