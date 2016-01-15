@@ -16,6 +16,7 @@ from charmhelpers.core.hookenv import is_leader
 from charmhelpers.core.hookenv import status_set
 from charmhelpers.core.templating import render
 from charmhelpers.core import unitdata
+from charmhelpers.core.host import chdir
 from contextlib import contextmanager
 
 
@@ -247,16 +248,6 @@ def gather_sdn_data():
         addedcontext['dns_server'] = dns_server
         return addedcontext
     return {}
-
-
-@contextmanager
-def chdir(path):
-    '''Change the current working directory to a different directory to run
-    commands and return to the previous directory after the command is done.'''
-    old_dir = os.getcwd()
-    os.chdir(path)
-    yield
-    os.chdir(old_dir)
 
 
 def copy_key(directory, prefix):
