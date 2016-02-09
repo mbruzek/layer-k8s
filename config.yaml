@@ -1,7 +1,7 @@
 options:
   version:
     type: string
-    default: "v1.0.6"
+    default: "v1.1.7"
     description: |
         The version of Kubernetes to use in this charm.  The version is
         inserted in the configuration files that specify the hyperkube
