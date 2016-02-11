@@ -1,30 +1,31 @@
-# k8s
+# kubernetes
 
 [Kubernetes](https://github.com/kubernetes/kubernetes) is an open
-source  system for managing containerized applications across multiple hosts.
-Kubernetes uses [Docker](http://www.docker.io/) to package, instantiate and run
-containerized applications.
+source system for managing application containers across multiple hosts.
+This version of Kubernetes uses [Docker](http://www.docker.io/) to package,
+instantiate and run containerized applications.
 
 This charm is an encapsulation of the
-[Running Kubernetes locally via Docker](https://github.com/kubernetes/kubernetes/blob/master/docs/getting-started-guides/docker.md)
-document.  The hyperkube image (`gcr.io/google_containers/hyperkube`) is
-currently pulled from a [Google owned container repository
+[Running Kubernetes locally via
+Docker](https://github.com/kubernetes/kubernetes/blob/master/docs/getting-started-guides/docker.md)
+document. The released hyperkube image (`gcr.io/google_containers/hyperkube`)
+is currently pulled from a [Google owned container repository
 repository](https://cloud.google.com/container-registry/).  For this charm to
 work it will need access to the repository to `docker pull` the images.
 
-The charm is implemented in the reactive pattern and uses the
-`layer:docker` as a base layer.  For more information please read the
-[Juju Charms documentation](https://jujucharms.com/docs/devel/authors-charm-composing)
-
+This charm was built from other charm layers using the reactive framework. The
+`layer:docker` is the base layer. For more information please read [Getting
+Started Developing charms](https://jujucharms.com/docs/devel/developer-getting-started)
 
 # Deployment
-The k8s charms require a relation to ECTD a distributed key value store
-which Kubernetes uses for persistent storage of all of its REST API objects.
+The kubernetes charms require a relation to a distributed key value store
+(ETCD) which Kubernetes uses for persistent storage of all of its REST API
+objects.
 
 ```
 juju deploy trusty/etcd
-juju deploy local:trusty/k8s
-juju add-relation k8s etcd
+juju deploy local:trusty/kubernetes
+juju add-relation kubernetes etcd
 ```
 
 # Configuration
@@ -39,18 +40,26 @@ Kubernetes containers to be restarted.
 
 
 ## State Events
-This charm makes use of the reactive framework where states are set or removed.
-The charm code can respond to these layers appropriately.
+While this charm is meant to be a top layer, it can be used to build other
+solutions.  This charm sets or removes states from the reactive framework that
+other layers could react appropriately. The states that other layers would be
+interested in are as follows:
 
-  **kubelet.available** - The hyperkube container has been run with the kubelet
- service and configuration that starts the apiserver, controller-manager and
- scheduler containers.
+**kubelet.available** - The hyperkube container has been run with the kubelet
+service and configuration that started the apiserver, controller-manager and
+scheduler containers.
 
- **proxy.available** - The hyperkube container has been run with the proxy
- service and configuration that handles Kubernetes networking.
+**proxy.available** - The hyperkube container has been run with the proxy
+service and configuration that handles Kubernetes networking.
 
- **kubectl.downloaded** - Denotes the availability of the `kubectl` application
- that can be found in `/usr/bin/local/kubectl`
+**kubectl.package.created** - Indicates the availability of the `kubectl`
+application along with the configuration needed to contact the cluster
+securely. You will need to download the `/home/ubuntu/kubectl_package.tar.gz`
+from the kubernetes leader unit to your machine so you can control the cluster.
+
+**skydns.available** - Indicates when the Domain Name System (DNS) for the
+cluster is operational.
+
 
 # Kubernetes information
 
