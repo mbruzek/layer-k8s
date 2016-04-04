@@ -59,7 +59,7 @@ spec:
         # command = "/skydns"
         - -machines=http://localhost:4001
         - -addr=0.0.0.0:53
-       {% if dns_domain -%}- -domain={{ dns_domain }}. {% else %}  - -domain=cluster.local. {% endif %}
+       {% if dns_domain -%}- -domain={{ dns_domain }} {% else %}  - -domain=cluster.local. {% endif %}
         ports:
         - containerPort: 53
           name: dns
