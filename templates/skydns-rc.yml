@@ -47,7 +47,7 @@ spec:
             memory: 50Mi
         args:
         # command = "/kube2sky"
-       {% if dns_domain -%}- -domain={{ dns_domain }} {% else %} - -domain=cluster.local {% endif %}
+       {% if dns_domain -%}- -domain={{ dns_domain }}. {% else %} - -domain=cluster.local. {% endif %}
         - -kube_master_url=http://{{private_address}}:8080
       - name: skydns
         image: gcr.io/google_containers/skydns:2015-03-11-001
@@ -57,9 +57,9 @@ spec:
             memory: 50Mi
         args:
         # command = "/skydns"
+       {% if dns_domain -%}- -domain={{ dns_domain }}. {% else %}  - -domain=cluster.local. {% endif %}
         - -machines=http://localhost:4001
         - -addr=0.0.0.0:53
-       {% if dns_domain -%}- -domain={{ dns_domain }} {% else %}  - -domain=cluster.local. {% endif %}
         ports:
         - containerPort: 53
           name: dns
