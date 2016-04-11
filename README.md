@@ -65,10 +65,11 @@ cluster is operational.
 
  - [Kubernetes github project](https://github.com/kubernetes/kubernetes)
  - [Kubernetes issue tracker](https://github.com/kubernetes/kubernetes/issues)
- - [Kubernetes Documenation](https://github.com/kubernetes/kubernetes/tree/master/docs)
+ - [Kubernetes Documenation](http://kubernetes.io/docs/)
  - [Kubernetes releases](https://github.com/kubernetes/kubernetes/releases)
 
 # Contact
 
  * Charm Author: Matthew Bruzek &lt;Matthew.Bruzek@canonical.com&gt;
  * Charm Contributor: Charles Butler &lt;Charles.Butler@canonical.com&gt;
+
