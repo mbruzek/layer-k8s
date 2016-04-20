@@ -1,1 +1,2 @@
 includes: ['layer:docker', 'layer:flannel', 'layer:tls', 'interface:etcd']
+repo: https://github.com/mbruzek/layer-k8s.git
