@@ -3,6 +3,7 @@ import os
 from shlex import split
 from shutil import copy2
 from subprocess import check_call
+from subprocess import check_output
 
 from charms.docker.compose import Compose
 from charms.reactive import hook
@@ -167,9 +168,9 @@ def download_kubectl():
     '''Download the kubectl binary to test and interact with the cluster.'''
     status_set('maintenance', 'Downloading the kubectl binary')
     version = hookenv.config()['version']
-    cmd = 'wget -nv -O /usr/local/bin/kubectl https://storage.googleapis.com/' \
-          'kubernetes-release/release/{0}/bin/linux/amd64/kubectl'
-    cmd = cmd.format(version)
+    cmd = 'wget -nv -O /usr/local/bin/kubectl https://storage.googleapis.com' \
+          '/kubernetes-release/release/{0}/bin/linux/{1}/kubectl'
+    cmd = cmd.format(version, arch())
     hookenv.log('Downloading kubelet: {0}'.format(cmd))
     check_call(split(cmd))
     cmd = 'chmod +x /usr/local/bin/kubectl'
@@ -283,8 +284,10 @@ def render_files(reldata=None):
     rendered_manifest_dir = os.path.join(charm_dir, 'files/manifests')
     if not os.path.exists(rendered_manifest_dir):
         os.makedirs(rendered_manifest_dir)
-    # Add the manifest directory so the docker-compose file can have.
-    context.update({'manifest_directory': rendered_manifest_dir,
+
+    # Update the context with extra values, arch, manifest dir, and private IP.
+    context.update({'arch': arch(),
+                    'manifest_directory': rendered_manifest_dir,
                     'private_address': hookenv.unit_get('private-address')})
 
     # Render the files/kubernetes/docker-compose.yml file that contains the
@@ -301,6 +304,21 @@ def render_files(reldata=None):
     # Render files/kubernetes/skydns-rc.yaml for SkyDNS pods
     target = os.path.join(rendered_manifest_dir, 'skydns-rc.yml')
     render('skydns-rc.yml', target, context)
+
+
+def arch():
+    '''Return the package archiecture as a string. Raise an exception if the
+    architecture is not supported by kubernetes.'''
+    # Get the package architecture for this system.
+    architecture = check_output(['dpkg', '--print-architecture']).rstrip()
+    # Convert the binary result into a string.
+    architecture = architecture.decode('utf-8')
+    # Validate the architecture is supported by kubernetes.
+    if architecture not in ['amd64', 'arm', 'arm64', 'ppc64le']:
+        message = 'Unsupported machine architecture: {0}'.format(architecture)
+        status_set('blocked', message)
+        raise Exception(message)
+    return architecture
 
 
 def save_certificate(directory, prefix):
