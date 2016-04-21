@@ -2,6 +2,7 @@ import os
 
 from shlex import split
 from shutil import copy2
+from subprocess import call
 from subprocess import check_call
 from subprocess import check_output
 
@@ -119,16 +120,27 @@ def final_messaging():
 @when('kubelet.available', 'proxy.available', 'cadvisor.available')
 @when_not('skydns.available')
 def launch_skydns():
-    '''Create a kubernetes service and resource controller for the skydns
-    service. '''
+    '''Create the "kube-system" namespace, the skydns resource controller, and
+    the skydns service. '''
     # Only launch and track this state on the leader.
     # Launching duplicate SkyDNS rc will raise an error
     if not is_leader():
         return
-    cmd = "kubectl create -f files/manifests/skydns-rc.yml"
-    check_call(split(cmd))
-    cmd = "kubectl create -f files/manifests/skydns-svc.yml"
-    check_call(split(cmd))
+    # Check for the "kube-system" namespace.
+    return_code = call(split('kubectl get namespace kube-system'))
+    if return_code != 0:
+        # Create the kube-system namespace that is used by the skydns files.
+        check_call(split('kubectl create namespace kube-system'))
+    # Check for the skydns replication controller.
+    return_code = call(split('kubectl get -f files/manifests/skydns-rc.yml'))
+    if return_code != 0:
+        # Create the skydns replication controller from the rendered file.
+        check_call(split('kubectl create -f files/manifests/skydns-rc.yml'))
+    # Check for the skydns service.
+    return_code = call(split('kubectl get -f files/manifests/skydns-svc.yml'))
+    if return_code != 0:
+        # Create the skydns service from the rendered file.
+        check_call(split('kubectl create -f files/manifests/skydns-svc.yml'))
     set_state('skydns.available')
 
 
