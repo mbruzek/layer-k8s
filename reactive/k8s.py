@@ -126,6 +126,12 @@ def launch_skydns():
     # Launching duplicate SkyDNS rc will raise an error
     if not is_leader():
         return
+    # Run a command to check if the apiserver is responding.
+    return_code = call(split('kubectl cluster-info'))
+    if return_code != 0:
+        hookenv.log('kubectl command failed, waiting for apiserver to start.')
+        # Return without setting the available state so this method will retry.
+        return
     # Check for the "kube-system" namespace.
     return_code = call(split('kubectl get namespace kube-system'))
     if return_code != 0:
