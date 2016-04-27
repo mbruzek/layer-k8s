@@ -1,4 +1,4 @@
-# https://github.com/kubernetes/kubernetes/blob/master/docs/getting-started-guides/docker.md
+# http://kubernetes.io/docs/getting-started-guides/docker/
 
 # docker run \
 #     --volume=/:/rootfs:ro \
@@ -24,7 +24,7 @@
 
 
 kubelet:
-  image: gcr.io/google_containers/hyperkube-{{arch}}:{{version}}
+  image: gcr.io/google_containers/hyperkube-{{ arch }}:{{ version }}
   net: host
   pid: host
   privileged: true
@@ -35,17 +35,17 @@ kubelet:
     - /var/lib/docker/:/var/lib/docker:rw
     - /var/lib/kubelet/:/var/lib/kubelet:rw
     - /var/run:/var/run:rw
-    - {{manifest_directory}}:/etc/kubernetes/manifests:rw
+    - {{ manifest_directory }}:/etc/kubernetes/manifests:rw
     - /srv/kubernetes:/srv/kubernetes
   command: |
     /hyperkube kubelet
     --containerized
-    --hostname-override="{{private_address}}"
+    --hostname-override="{{ private_address }}"
     --address="0.0.0.0"
     --api-servers=http://localhost:8080
-    --config=/etc/kubernetes/manifests{% if dns_server %}
-    --cluster-dns={{dns_server}}
-    --cluster-domain=cluster.local{% endif %}
+    --config=/etc/kubernetes/manifests
+    --cluster-dns={{ pillar['dns_server'] }}
+    --cluster-domain={{ pillar['dns_domain'] }}
     --allow-privileged=true
     --v=2
     --tls-cert-file="/srv/kubernetes/server.crt"
@@ -61,7 +61,7 @@ proxy:
   net: host
   privileged: true
   restart: always
-  image: gcr.io/google_containers/hyperkube-{{arch}}:{{version}}
+  image: gcr.io/google_containers/hyperkube-{{ arch }}:{{ version }}
   command: /hyperkube proxy --master=http://127.0.0.1:8080 --v=2
 
 # cAdvisor (Container Advisor) provides container users an understanding of
