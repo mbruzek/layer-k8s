@@ -32,9 +32,12 @@ juju add-relation kubernetes etcd
 For your convenience this charm supports some configuration options to set up
 a Kuberentes cluster that works in your environment:  
 
-**version**: Set the version of the Kubernetes containers to deploy.
-The default value is "v1.0.6".  Changing the version causes the all the
-Kubernetes containers to be restarted.
+**version**: Set the version of the Kubernetes containers to deploy. The
+version string must be in the following format "v#.#.#" where the numbers
+match with the
+[kubernetes release labels](https://github.com/kubernetes/kubernetes/releases)
+of the [kubernetes github project](https://github.com/kubernetes/kubernetes).
+Changing the version causes the all the Kubernetes containers to be restarted.
 
 **cidr**: Set the IP range for the Kubernetes cluster. eg: 10.1.0.0/16
 
@@ -65,7 +68,7 @@ cluster is operational.
 
  - [Kubernetes github project](https://github.com/kubernetes/kubernetes)
  - [Kubernetes issue tracker](https://github.com/kubernetes/kubernetes/issues)
- - [Kubernetes Documenation](https://github.com/kubernetes/kubernetes/tree/master/docs)
+ - [Kubernetes Documenation](http://kubernetes.io/docs/)
  - [Kubernetes releases](https://github.com/kubernetes/kubernetes/releases)
 
 # Contact
