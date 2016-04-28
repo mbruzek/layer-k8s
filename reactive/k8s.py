@@ -310,7 +310,7 @@ def render_files(reldata=None):
 
 
 def arch():
-    '''Return the package archiecture as a string. Raise an exception if the
+    '''Return the package architecture as a string. Raise an exception if the
     architecture is not supported by kubernetes.'''
     # Get the package architecture for this system.
     architecture = check_output(['dpkg', '--print-architecture']).rstrip()
