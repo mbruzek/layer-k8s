@@ -14,12 +14,20 @@ from charms.reactive import when_not
 
 from charmhelpers.core import hookenv
 from charmhelpers.core.hookenv import is_leader
+from charmhelpers.core.hookenv import leader_set
+from charmhelpers.core.hookenv import leader_get
 from charmhelpers.core.hookenv import status_set
 from charmhelpers.core.templating import render
 from charmhelpers.core import unitdata
 from charmhelpers.core.host import chdir
 
 import tlslib
+
+
+@when('is_leader')
+def i_am_leader():
+    '''The leader is the Kubernetes master node.'''
+    leader_set({'master-address': hookenv.unit_private_ip()})
 
 
 @hook('config-changed')
@@ -138,22 +146,27 @@ def relation_message():
 @when('etcd.available', 'tls.server.certificate available')
 @when_not('kubelet.available', 'proxy.available')
 def master(etcd):
-    '''Install and run the hyperkube container that starts kubernetes-master.
-    This actually runs the kubelet, which in turn runs a pod that contains the
-    other master components. '''
+    '''Run the hyperkube container that starts kubernetes services.
+    When the leader run the master services (apiserver, controller, scheduler)
+    using the master.json from the rendered manifest directory.
+    When not the leader start the node services (kubelet, and proxy).'''
     render_files(etcd)
     # Use the Compose class that encapsulates the docker-compose commands.
     compose = Compose('files/kubernetes')
-    status_set('maintenance', 'Starting the Kubernetes kubelet container.')
-    # Start the Kubernetes kubelet container using docker-compose.
-    compose.up('kubelet')
+    if is_leader():
+        status_set('maintenance', 'Starting the Kubernetes master services.')
+        compose.up('master')
+        # Open the secure port for api-server.
+        hookenv.open_port(6443)
+    else:
+        status_set('maintenance', 'Starting the Kubernetes node services.')
+        # Start the Kubernetes kubelet container using docker-compose.
+        compose.up('kubelet')
+        # Start the Kubernetes proxy container using docker-compose.
+        compose.up('proxy')
+        set_state('proxy.available')
+    # Both master and node services are started by kubelet.
     set_state('kubelet.available')
-    # Open the secure port for api-server.
-    hookenv.open_port(6443)
-    status_set('maintenance', 'Starting the Kubernetes proxy container')
-    # Start the Kubernetes proxy container using docker-compose.
-    compose.up('proxy')
-    set_state('proxy.available')
     status_set('active', 'Kubernetes started')
 
 
@@ -284,6 +297,7 @@ def render_files(reldata=None):
 
     # Update the context with extra values, arch, manifest dir, and private IP.
     context.update({'arch': arch(),
+                    'master_address': leader_get('master-address'),
                     'manifest_directory': rendered_manifest_dir,
                     'public_address': hookenv.unit_get('public-address'),
                     'private_address': hookenv.unit_get('private-address')})
@@ -294,19 +308,20 @@ def render_files(reldata=None):
     # definition for kubelet and proxy.
     render('docker-compose.yml', target, context)
 
-    # Source: https://github.com/kubernetes/...master/cluster/images/hyperkube
-    target = os.path.join(rendered_manifest_dir, 'master.json')
-    # Render the files/manifests/master.json that contains parameters for the
-    # apiserver, controller, and controller-manager
-    render('master.json', target, context)
-    # Source: ...master/cluster/addons/dns/skydns-svc.yaml.in
-    target = os.path.join(rendered_manifest_dir, 'skydns-svc.yml')
-    # Render files/kubernetes/skydns-svc.yaml for SkyDNS service.
-    render('skydns-svc.yml', target, context)
-    # Source: ...master/cluster/addons/dns/skydns-rc.yaml.in
-    target = os.path.join(rendered_manifest_dir, 'skydns-rc.yml')
-    # Render files/kubernetes/skydns-rc.yaml for SkyDNS pod.
-    render('skydns-rc.yml', target, context)
+    if is_leader():
+        # Source: https://github.com/kubernetes/...master/cluster/images/hyperkube  # noqa
+        target = os.path.join(rendered_manifest_dir, 'master.json')
+        # Render the files/manifests/master.json that contains parameters for
+        # the apiserver, controller, and controller-manager
+        render('master.json', target, context)
+        # Source: ...master/cluster/addons/dns/skydns-svc.yaml.in
+        target = os.path.join(rendered_manifest_dir, 'skydns-svc.yml')
+        # Render files/kubernetes/skydns-svc.yaml for SkyDNS service.
+        render('skydns-svc.yml', target, context)
+        # Source: ...master/cluster/addons/dns/skydns-rc.yaml.in
+        target = os.path.join(rendered_manifest_dir, 'skydns-rc.yml')
+        # Render files/kubernetes/skydns-rc.yaml for SkyDNS pod.
+        render('skydns-rc.yml', target, context)
 
 
 def arch():
