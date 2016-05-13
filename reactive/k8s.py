@@ -16,7 +16,6 @@ from charmhelpers.core import hookenv
 from charmhelpers.core.hookenv import is_leader
 from charmhelpers.core.hookenv import leader_set
 from charmhelpers.core.hookenv import leader_get
-from charmhelpers.core.hookenv import status_set
 from charmhelpers.core.templating import render
 from charmhelpers.core import unitdata
 from charmhelpers.core.host import chdir
@@ -24,7 +23,7 @@ from charmhelpers.core.host import chdir
 import tlslib
 
 
-@when('is_leader')
+@when('leadership.is_leader')
 def i_am_leader():
     '''The leader is the Kubernetes master node.'''
     leader_set({'master-address': hookenv.unit_private_ip()})
@@ -38,12 +37,20 @@ def config_changed():
         hookenv.log('Configuration options have changed.')
         # Use the Compose class that encapsulates the docker-compose commands.
         compose = Compose('files/kubernetes')
-        hookenv.log('Removing kubelet container and kubelet.available state.')
-        # Stop and remove the Kubernetes kubelet container..
-        compose.kill('kubelet')
-        compose.rm('kubelet')
-        # Remove the state so the code can react to restarting kubelet.
-        remove_state('kubelet.available')
+        if is_leader():
+            hookenv.log('Removing master container and kubelet.available state.')  # noqa
+            # Stop and remove the Kubernetes kubelet container.
+            compose.kill('master')
+            compose.rm('master')
+            # Remove the state so the code can react to restarting kubelet.
+            remove_state('kubelet.available')
+        else:
+            hookenv.log('Removing kubelet container and kubelet.available state.')  # noqa
+            # Stop and remove the Kubernetes kubelet container.
+            compose.kill('kubelet')
+            compose.rm('kubelet')
+            # Remove the state so the code can react to restarting kubelet.
+            remove_state('kubelet.available')
         hookenv.log('Removing proxy container and proxy.available state.')
         # Stop and remove the Kubernetes proxy container.
         compose.kill('proxy')
@@ -90,26 +97,13 @@ def ca():
     set_state('k8s.certificate.authority available')
 
 
-@when('kubelet.available', 'proxy.available', 'cadvisor.available')
-def final_messaging():
-    '''Lower layers emit messages, and if we do not clear the status messaging
-    queue, we are left with whatever the last method call sets status to. '''
-    # It's good UX to have consistent messaging that the cluster is online
-    if is_leader():
-        status_set('active', 'Kubernetes leader running')
-    else:
-        status_set('active', 'Kubernetes follower running')
-
-
-@when('kubelet.available', 'proxy.available', 'cadvisor.available')
+@when('kubectl.downloaded', 'leadership.is_leader')
 @when_not('skydns.available')
 def launch_skydns():
     '''Create the "kube-system" namespace, the skydns resource controller, and
     the skydns service. '''
     # Only launch and track this state on the leader.
     # Launching duplicate SkyDNS rc will raise an error
-    if not is_leader():
-        return
     # Run a command to check if the apiserver is responding.
     return_code = call(split('kubectl cluster-info'))
     if return_code != 0:
@@ -145,32 +139,31 @@ def relation_message():
 
 @when('etcd.available', 'tls.server.certificate available')
 @when_not('kubelet.available', 'proxy.available')
-def master(etcd):
-    '''Run the hyperkube container that starts kubernetes services.
-    When the leader run the master services (apiserver, controller, scheduler)
+def start_kubelet(etcd):
+    '''Run the hyperkube container that starts the kubernetes services.
+    When the leader, run the master services (apiserver, controller, scheduler)
     using the master.json from the rendered manifest directory.
     When not the leader start the node services (kubelet, and proxy).'''
     render_files(etcd)
     # Use the Compose class that encapsulates the docker-compose commands.
     compose = Compose('files/kubernetes')
+    status_set('maintenance', 'Starting the Kubernetes services.')
     if is_leader():
-        status_set('maintenance', 'Starting the Kubernetes master services.')
         compose.up('master')
+        set_state('kubelet.available')
         # Open the secure port for api-server.
         hookenv.open_port(6443)
     else:
-        status_set('maintenance', 'Starting the Kubernetes node services.')
         # Start the Kubernetes kubelet container using docker-compose.
         compose.up('kubelet')
+        set_state('kubelet.available')
         # Start the Kubernetes proxy container using docker-compose.
         compose.up('proxy')
         set_state('proxy.available')
-    # Both master and node services are started by kubelet.
-    set_state('kubelet.available')
-    status_set('active', 'Kubernetes started')
+    status_set('active', 'Kubernetes services started')
 
 
-@when('proxy.available')
+@when('kubelet.available', 'leadership.is_leader')
 @when_not('kubectl.downloaded')
 def download_kubectl():
     '''Download the kubectl binary to test and interact with the cluster.'''
@@ -184,16 +177,13 @@ def download_kubectl():
     cmd = 'chmod +x /usr/local/bin/kubectl'
     check_call(split(cmd))
     set_state('kubectl.downloaded')
-    status_set('active', 'Kubernetes installed')
 
 
-@when('kubectl.downloaded')
+@when('kubectl.downloaded', 'leadership.is_leader')
 @when_not('kubectl.package.created')
 def package_kubectl():
     '''Package the kubectl binary and configuration to a tar file for users
     to consume and interact directly with Kubernetes.'''
-    if not is_leader():
-        return
     context = 'default-context'
     cluster_name = 'kubernetes'
     public_address = hookenv.unit_public_ip()
@@ -228,6 +218,7 @@ def package_kubectl():
         cmd = 'tar -cvzf /home/ubuntu/kubectl_package.tar.gz ca.crt client.crt client.key config kubectl'  # noqa
         check_call(split(cmd))
         set_state('kubectl.package.created')
+        status_set('active', 'kubectl package created')
 
 
 @when('proxy.available')
@@ -237,9 +228,9 @@ def start_cadvisor():
     application containers on this system. '''
     compose = Compose('files/kubernetes')
     compose.up('cadvisor')
-    set_state('cadvisor.available')
-    status_set('active', 'cadvisor running on port 8088')
     hookenv.open_port(8088)
+    status_set('active', 'cadvisor running on port 8088')
+    set_state('cadvisor.available')
 
 
 @when('sdn.available')
@@ -322,6 +313,13 @@ def render_files(reldata=None):
         target = os.path.join(rendered_manifest_dir, 'skydns-rc.yml')
         # Render files/kubernetes/skydns-rc.yaml for SkyDNS pod.
         render('skydns-rc.yml', target, context)
+
+
+def status_set(level, message):
+    '''Output status message with leadership information.'''
+    if is_leader():
+         message = '(master) {0}'.format(message)
+    hookenv.status_set(level, message)
 
 
 def arch():

@@ -1,5 +1,29 @@
 # http://kubernetes.io/docs/getting-started-guides/docker/
 
+# # Start kubelet and then start master components as pods
+# docker run \
+#     --net=host \
+#     --pid=host \
+#     --privileged \
+#     --restart=on-failure \
+#     -d \
+#     -v /sys:/sys:ro \
+#     -v /var/run:/var/run:rw \
+#     -v /:/rootfs:ro \
+#     -v /var/lib/docker/:/var/lib/docker:rw \
+#     -v /var/lib/kubelet/:/var/lib/kubelet:rw \
+#     gcr.io/google_containers/hyperkube-${ARCH}:v${K8S_VERSION} \
+#     /hyperkube kubelet \
+#         --address=0.0.0.0 \
+#         --allow-privileged=true \
+#         --enable-server \
+#         --api-servers=http://localhost:8080 \
+#         --config=/etc/kubernetes/manifests-multi \
+#         --cluster-dns=10.0.0.10 \
+#         --cluster-domain=cluster.local \
+#         --containerized \
+#         --v=2
+
 master:
   image: gcr.io/google_containers/hyperkube-{{ arch }}:{{ version }}
   net: host
@@ -16,39 +40,39 @@ master:
     - /srv/kubernetes:/srv/kubernetes
   command: |
     /hyperkube kubelet
-    --containerized
-    --hostname-override="{{ private_address }}"
     --address="0.0.0.0"
+    --allow-privileged=true
     --api-servers=http://localhost:8080
-    --config=/etc/kubernetes/manifests
     --cluster-dns={{ pillar['dns_server'] }}
     --cluster-domain={{ pillar['dns_domain'] }}
-    --allow-privileged=true
-    --v=2
+    --config=/etc/kubernetes/manifests
+    --containerized
+    --hostname-override="{{ private_address }}"
     --tls-cert-file="/srv/kubernetes/server.crt"
     --tls-private-key-file="/srv/kubernetes/server.key"
+    --v=2
 
 # docker run \
-#     --volume=/:/rootfs:ro \
-#     --volume=/sys:/sys:ro \
-#     --volume=/var/lib/docker/:/var/lib/docker:rw \
-#     --volume=/var/lib/kubelet/:/var/lib/kubelet:rw \
-#     --volume=/var/run:/var/run:rw \
 #     --net=host \
 #     --pid=host \
-#     --privileged=true \
-#     --name=kubelet \
+#     --privileged \
+#     --restart=on-failure \
 #     -d \
-#     gcr.io/google_containers/hyperkube-amd64:${K8S_VERSION} \
+#     -v /sys:/sys:ro \
+#     -v /var/run:/var/run:rw  \
+#     -v /:/rootfs:ro \
+#     -v /var/lib/docker/:/var/lib/docker:rw \
+#     -v /var/lib/kubelet/:/var/lib/kubelet:rw \
+#     gcr.io/google_containers/hyperkube-${ARCH}:v${K8S_VERSION} \
 #     /hyperkube kubelet \
-#         --containerized \
-#         --hostname-override="127.0.0.1" \
-#         --address="0.0.0.0" \
-#         --api-servers=http://localhost:8080 \
-#         --config=/etc/kubernetes/manifests \
+#         --allow-privileged=true \
+#         --api-servers=http://${MASTER_IP}:8080 \
+#         --address=0.0.0.0 \
+#         --enable-server \
 #         --cluster-dns=10.0.0.10 \
 #         --cluster-domain=cluster.local \
-#         --allow-privileged=true --v=2
+#         --containerized \
+#         --v=2
 
 
 kubelet:
@@ -66,30 +90,36 @@ kubelet:
     - /srv/kubernetes:/srv/kubernetes
   command: |
     /hyperkube kubelet
-    --containerized
-    --hostname-override="{{ private_address }}"
     --address="0.0.0.0"
+    --allow-privileged=true
     --api-servers=https://{{ master_address }}:8080
-    --config=/etc/kubernetes/manifests
     --cluster-dns={{ pillar['dns_server'] }}
     --cluster-domain={{ pillar['dns_domain'] }}
-    --allow-privileged=true
-    --v=2
+    --config=/etc/kubernetes/manifests
+    --containerized
+    --hostname-override="{{ private_address }}"
     --tls-cert-file="/srv/kubernetes/server.crt"
     --tls-private-key-file="/srv/kubernetes/server.key"
+    --v=2
 
 # docker run \
 #     -d \
 #     --net=host \
 #     --privileged \
-#     gcr.io/google_containers/hyperkube:v${K8S_VERSION} \
-#     /hyperkube proxy --master=http://127.0.0.1:8080 --v=2
+#     --restart=on-failure \
+#     gcr.io/google_containers/hyperkube-${ARCH}:v${K8S_VERSION} \
+#     /hyperkube proxy \
+#         --master=http://${MASTER_IP}:8080 \
+#         --v=2
 proxy:
   net: host
   privileged: true
   restart: always
   image: gcr.io/google_containers/hyperkube-{{ arch }}:{{ version }}
-  command: /hyperkube proxy --master=http://127.0.0.1:8080 --v=2
+  command: |
+    /hyperkube proxy
+    --master=http://{{ master_address }}:8080
+    --v=2
 
 # cAdvisor (Container Advisor) provides container users an understanding of
 # the resource usage and performance characteristics of their running containers.
