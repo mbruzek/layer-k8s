@@ -163,7 +163,7 @@ def start_kubelet(etcd):
     status_set('active', 'Kubernetes services started')
 
 
-@when('kubelet.available', 'leadership.is_leader')
+@when('kubelet.available')
 @when_not('kubectl.downloaded')
 def download_kubectl():
     '''Download the kubectl binary to test and interact with the cluster.'''

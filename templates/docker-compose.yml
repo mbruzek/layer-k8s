@@ -92,10 +92,9 @@ kubelet:
     /hyperkube kubelet
     --address="0.0.0.0"
     --allow-privileged=true
-    --api-servers=https://{{ master_address }}:8080
+    --api-servers=https://{{ master_address }}:6443
     --cluster-dns={{ pillar['dns_server'] }}
     --cluster-domain={{ pillar['dns_domain'] }}
-    --config=/etc/kubernetes/manifests
     --containerized
     --hostname-override="{{ private_address }}"
     --tls-cert-file="/srv/kubernetes/server.crt"
