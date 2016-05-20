@@ -52,6 +52,8 @@ master:
     --tls-private-key-file="/srv/kubernetes/server.key"
     --v=2
 
+# Start kubelet without the config option and only kubelet starts.
+# kubelet gets the tls credentials from /var/lib/kubelet/kubeconfig
 # docker run \
 #     --net=host \
 #     --pid=host \
@@ -97,8 +99,6 @@ kubelet:
     --cluster-domain={{ pillar['dns_domain'] }}
     --containerized
     --hostname-override="{{ private_address }}"
-    --tls-cert-file="/srv/kubernetes/server.crt"
-    --tls-private-key-file="/srv/kubernetes/server.key"
     --v=2
 
 # docker run \
