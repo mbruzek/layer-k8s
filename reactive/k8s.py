@@ -205,10 +205,13 @@ def master_kubeconfig():
     interact securely with the apiserver.'''
     hookenv.log('Creating Kubernetes configuration for master node.')
     directory = '/srv/kubernetes'
+    ca = '/srv/kubernetes/ca.crt'
+    key = '/srv/kubernetes/client.key'
+    cert = '/srv/kubernetes/client.crt'
     # Get the public address of the apiserver so users can access the master.
     server = 'https://{0}:{1}'.format(hookenv.unit_public_ip(), '6443')
     # Create the client kubeconfig so users can access the master node.
-    create_kubeconfig(directory, server, 'ca.crt', 'client.key', 'client.crt')
+    create_kubeconfig(directory, server, ca, key, cert)
     # Copy the kubectl binary to this directory.
     cmd = 'cp -v /usr/local/bin/kubectl {0}'.format(directory)
     check_call(split(cmd))
@@ -313,7 +316,7 @@ def create_kubeconfig(directory, server, ca, key, cert, user='ubuntu'):
     # Ensure the destination directory exists.
     if not os.path.isdir(directory):
         os.makedirs(directory)
-    # The configuration file should be named kubeconfig.
+    # The configuration file should be in this directory named kubeconfig.
     kubeconfig = os.path.join(directory, 'kubeconfig')
     # Create the config file with the address of the master server.
     cmd = 'kubectl config set-cluster --kubeconfig={0} {1} ' \
