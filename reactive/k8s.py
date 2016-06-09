@@ -355,8 +355,23 @@ def render_files(reldata=None):
     # Add the charm configuration data to the context.
     context.update(hookenv.config())
     if reldata:
+        connection_string = reldata.connection_string()
         # Add the etcd relation data to the context.
-        context.update({'connection_string': reldata.connection_string()})
+        context.update({'connection_string': connection_string})
+        # Define where the etcd tls files will be kept.
+        etcd_dir = '/etc/ssl/etcd'
+        # Update the context so with etcd_dir so the template has full paths.
+        context.update({'etcd_dir': etcd_dir})
+        if not os.path.isdir(etcd_dir):
+            os.makedirs(etcd_dir)
+        certs = etcd.ssl_certificates()
+        with open(os.path.join(etcd_dir,'client-ca.pem', 'w') as stream:
+            stream.write(certs['client_ca'])
+        with open(os.path.join(etcd_dir,'client-key.pem', 'w') as stream:
+            stream.write(certs['client_key'])
+        with open(os.path.join(etcd_dir,'client-cert.pem', 'w') as stream:
+            stream.write(certs['client_cert'])
+
     charm_dir = hookenv.charm_dir()
     rendered_kube_dir = os.path.join(charm_dir, 'files/kubernetes')
     if not os.path.exists(rendered_kube_dir):
