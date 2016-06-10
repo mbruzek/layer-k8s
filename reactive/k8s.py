@@ -155,7 +155,8 @@ def relation_message():
     status_set('waiting', 'Waiting for relation to ETCD')
 
 
-@when('etcd.available', 'kubeconfig.created')
+@when('kubeconfig.created')
+@when_any('etcd.available', 'etcd.tls.available')
 @when_not('kubelet.available', 'proxy.available')
 def start_kubelet(etcd):
     '''Run the hyperkube container that starts the kubernetes services.
@@ -355,22 +356,21 @@ def render_files(reldata=None):
     # Add the charm configuration data to the context.
     context.update(hookenv.config())
     if reldata:
-        connection_string = reldata.connection_string()
-        # Add the etcd relation data to the context.
-        context.update({'connection_string': connection_string})
+        connection_string = reldata.get_connection_string()
         # Define where the etcd tls files will be kept.
         etcd_dir = '/etc/ssl/etcd'
-        # Update the context so with etcd_dir so the template has full paths.
-        context.update({'etcd_dir': etcd_dir})
-        if not os.path.isdir(etcd_dir):
-            os.makedirs(etcd_dir)
-        certs = etcd.ssl_certificates()
-        with open(os.path.join(etcd_dir,'client-ca.pem', 'w') as stream:
-            stream.write(certs['client_ca'])
-        with open(os.path.join(etcd_dir,'client-key.pem', 'w') as stream:
-            stream.write(certs['client_key'])
-        with open(os.path.join(etcd_dir,'client-cert.pem', 'w') as stream:
-            stream.write(certs['client_cert'])
+        # Create paths to the etcd client ca, key, and cert file locations.
+        ca = os.path.join(etcd_dir, 'client-ca.pem')
+        key = os.path.join(etcd_dir, 'client-key.pem')
+        cert = os.path.join(etcd_dir, 'client-cert.pem')
+        # Save the client credentials (in relation data) to the paths provided.
+        reldata.save_client_credentials(key, cert, ca)
+        # Update the context so the template has the etcd information.
+        context.update({'etcd_dir': etcd_dir,
+                        'connection_string': connection_string,
+                        'etcd-ca': ca,
+                        'etcd-key': key,
+                        'etcd-cert': cert})
 
     charm_dir = hookenv.charm_dir()
     rendered_kube_dir = os.path.join(charm_dir, 'files/kubernetes')
