@@ -156,7 +156,7 @@ def relation_message():
 
 
 @when('kubeconfig.created')
-@when_any('etcd.available', 'etcd.tls.available')
+@when('etcd.available')
 @when_not('kubelet.available', 'proxy.available')
 def start_kubelet(etcd):
     '''Run the hyperkube container that starts the kubernetes services.
