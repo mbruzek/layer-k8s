@@ -368,9 +368,9 @@ def render_files(reldata=None):
         # Update the context so the template has the etcd information.
         context.update({'etcd_dir': etcd_dir,
                         'connection_string': connection_string,
-                        'etcd-ca': ca,
-                        'etcd-key': key,
-                        'etcd-cert': cert})
+                        'etcd_ca': ca,
+                        'etcd_key': key,
+                        'etcd_cert': cert})
 
     charm_dir = hookenv.charm_dir()
     rendered_kube_dir = os.path.join(charm_dir, 'files/kubernetes')

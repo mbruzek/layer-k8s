@@ -32,7 +32,7 @@
               "apiserver",
               "--service-cluster-ip-range={{ cidr }}",
               "--insecure-bind-address=0.0.0.0",
-              {% if etc_dir -%}
+              {% if etcd_dir -%}
               "--etcd-cafile={{ etcd_ca }}",
               "--etcd-keyfile={{ etcd_key }}",
               "--etcd-certfile={{ etcd_cert }}",
