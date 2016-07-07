@@ -37,6 +37,19 @@ def configure_easrsa():
     # Setting this state before easyrsa is configured ensures the tls layer is
     # configured to generate certificates with client authentication.
     set_state('tls.client.authorization.required')
+    domain = hookenv.config().get('dns_domain')
+    cidr = hookenv.config().get('cidr')
+    sdn_ip = get_sdn_ip(cidr)
+    # Create extra sans that the tls layer will add to the server cert.
+    extra_sans = [
+        sdn_ip,
+        'kubernetes',
+        'kubernetes.{0}'.format(domain),
+        'kubernetes.default',
+        'kubernetes.default.svc',
+        'kubernetes.default.svc.{0}'.format(domain)
+    ]
+    unitdata.kv().set('extra_sans', extra_sans)
 
 
 @hook('config-changed')
@@ -344,6 +357,14 @@ def get_dns_ip(cidr):
     ip = cidr.split('/')[0]
     # Take the last octet off the IP address and replace it with 10.
     return '.'.join(ip.split('.')[0:-1]) + '.10'
+
+
+def get_sdn_ip(cidr):
+    '''Get the IP address for the SDN gateway based on the provided cidr.'''
+    # Remove the range from the cidr.
+    ip = cidr.split('/')[0]
+    # Remove the last octet and replace it with 1.
+    return '.'.join(ip.split('.')[0:-1]) + '.1'
 
 
 def render_files(reldata=None):
