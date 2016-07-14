@@ -65,6 +65,8 @@ def config_changed():
             # Stop and remove the Kubernetes kubelet container.
             compose.kill('master')
             compose.rm('master')
+            compose.kill('proxy')
+            compose.rm('proxy')
             # Remove the state so the code can react to restarting kubelet.
             remove_state('kubelet.available')
         else:
@@ -173,7 +175,8 @@ def relation_message():
 @when_not('kubelet.available', 'proxy.available')
 def start_kubelet(etcd):
     '''Run the hyperkube container that starts the kubernetes services.
-    When the leader, run the master services (apiserver, controller, scheduler)
+    When the leader, run the master services (apiserver, controller, scheduler,
+    proxy)
     using the master.json from the rendered manifest directory.
     When a follower, start the node services (kubelet, and proxy). '''
     render_files(etcd)
@@ -182,6 +185,7 @@ def start_kubelet(etcd):
     status_set('maintenance', 'Starting the Kubernetes services.')
     if is_leader():
         compose.up('master')
+        compose.up('proxy')
         set_state('kubelet.available')
         # Open the secure port for api-server.
         hookenv.open_port(6443)
