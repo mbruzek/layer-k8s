@@ -232,8 +232,12 @@ def master_kubeconfig():
     # Use a context manager to run the tar command in a specific directory.
     with chdir(directory):
         # Create a package with kubectl and the files to use it externally.
-        cmd = 'tar -cvzf /home/ubuntu/kubectl_package.tar.gz ca.crt client.crt client.key kubeconfig kubectl'  # noqa
+        cmd = 'tar -cvzf /home/ubuntu/kubectl_package.tar.gz ca.crt ' \
+              'client.key client.crt kubectl kubeconfig'
         check_call(split(cmd))
+
+    # This sets up the client workspace consistently on the leader and nodes.
+    node_kubeconfig()
     set_state('kubeconfig.created')
 
 
